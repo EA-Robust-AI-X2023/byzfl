@@ -3,3 +3,4 @@ build
 dist
 byzfl.egg*
 setup.py
+__pycache__
