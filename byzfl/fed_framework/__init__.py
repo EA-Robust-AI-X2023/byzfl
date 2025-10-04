@@ -16,3 +16,4 @@ from .server import Server
 # Import clients last, as they may depend on server or ModelBaseInterface
 from .client import Client
 from .byzantine_client import ByzantineClient
+from .poisoning_client import PoisoningClient
