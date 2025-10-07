@@ -12,7 +12,7 @@ class Client(ModelBaseInterface):
             raise TypeError(f"'params' must be of type dict, but got {type(params).__name__}")
         if not isinstance(params["loss_name"], str):
             raise TypeError(f"'loss_name' must be of type str, but got {type(params['loss_name']).__name__}")
-        if not isinstance(params["LabelFlipping"], bool):
+        if "LabelFlipping" in params and not isinstance(params["LabelFlipping"], bool):
             raise TypeError(f"'LabelFlipping' must be of type bool, but got {type(params['LabelFlipping']).__name__}")
         if not isinstance(params["nb_labels"], int) or not params["nb_labels"] > 1:
             raise ValueError(f"'nb_labels' must be an integer greater than 1")
@@ -37,7 +37,7 @@ class Client(ModelBaseInterface):
 
         self.criterion = getattr(torch.nn, params["loss_name"])()
         self.gradient_LF = 0
-        self.labelflipping = params["LabelFlipping"]
+        self.labelflipping = params.get("LabelFlipping", False)
         self.nb_labels = params["nb_labels"]
         self.momentum = params["momentum"]
         self.momentum_gradient = torch.zeros_like(
