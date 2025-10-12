@@ -170,6 +170,7 @@ class logreg_mnist(nn.Module):
         """Perform a forward pass through the model."""
         return torch.sigmoid(self._linear(x.view(-1, 784)))
     
+
 class Softmax_mnist(nn.Module):
     """
     Softmax Regression Model for MNIST.
@@ -196,6 +197,7 @@ class Softmax_mnist(nn.Module):
         """Perform a forward pass through the model."""
         return torch.softmax(self._linear(x.view(-1, 784)))
     
+
 class MLP_mnist(nn.Module):
     """
     Peng & al. MLP Model for MNIST.
@@ -228,6 +230,7 @@ class MLP_mnist(nn.Module):
         x = F.relu(x)
         x = self.classification_layer(x)
         return x
+   
     
 class CNN_mnist(nn.Module):
     """
@@ -240,19 +243,19 @@ class CNN_mnist(nn.Module):
     Examples:
     ---------
     >>> model = CNN_mnist()
-    >>> x = torch.randn(16, 28*28)  # Batch of 16 MNIST images
+    >>> x = x = torch.randn(16, 1, 28, 28)  # Batch of 16 MNIST images
     >>> output = model(x)
     >>> print(output.shape)
     torch.Size([16, 10])
     """
-    def __init__(self, num_classes=10):
+    def __init__(self):
         """Initialize the model parameters."""
         super().__init__()
         self.conv1 = nn.Conv2d(3, 16, 3, padding=1)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(16, 32, 3, padding=1)
         self.fc1 = nn.Linear(32 * 8 * 8, 128)
-        self.fc2 = nn.Linear(128, num_classes)
+        self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
         """Perform a forward pass through the model."""

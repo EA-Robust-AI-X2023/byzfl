@@ -1,6 +1,7 @@
 import time
 
 import numpy as np
+import torch
 from torch import Tensor
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
@@ -194,6 +195,11 @@ def start_training(params):
     test_accuracy_list = np.array([])
     train_loss_list = np.zeros((nb_training_steps))
 
+    honest_scattering_list = np.zeros((nb_training_steps))
+    byzantine_scattering_list = np.zeros((nb_training_steps))
+    feature_mean = np.zeros((nb_training_steps))
+    feature_variance = []
+
     start_time = time.time()
 
     # Send Initial Model to All Clients
@@ -256,10 +262,13 @@ def start_training(params):
         if training_algorithm_name == "DSGD":
 
             train_loss_per_client = np.zeros((nb_honest_clients))
+            mean_feature = np.zeros((nb_honest_clients))
+            variance_feature = np.zeros((nb_honest_clients))
+
 
             # Honest Clients Compute Gradients
             for i, client in enumerate(honest_clients):
-                train_loss_per_client[i] = client.compute_gradients()
+                train_loss_per_client[i], mean_feature[i], variance_feature[i] = client.compute_gradients()
             
             train_loss_list[training_step] = train_loss_per_client.mean()
             
@@ -281,6 +290,29 @@ def start_training(params):
 
             # Update Global Model
             server.update_model_with_gradients(gradients)
+            gradient = torch.stack(honest_gradients).mean(dim = 0)
+
+            # Evaluate honest gradients scatterings
+            max_dist = 0
+            for i in range(len(honest_gradients)):
+                dist = torch.norm(honest_gradients[i] - gradient)
+                if dist > max_dist:
+                    max_dist = dist
+
+            honest_scattering_list[training_step] = max_dist
+
+            # Evaluate byzantine gradients scatterings
+            max_dist = 0
+            for i in range(len(nb_byz_clients)):
+                dist = torch.norm(byz_vector[i] - gradient)
+                if dist > max_dist:
+                    max_dist = dist
+            byzantine_scattering_list[training_step] = max_dist
+
+            # Save features norm mean
+            feature_mean[training_step] = mean_feature.max()
+            feature_variance += [variance_feature]
+
 
         elif training_algorithm_name == "FedAvg":
 

@@ -1023,3 +1023,27 @@ def aggregated_test_heatmap(path_to_results, path_to_plot):
                     plt.tight_layout()
                     plt.savefig(path_to_plot +"/"+ file_name)
                     plt.close()
+
+
+def honest_gradients_scattering():
+    pass
+
+
+def poisonned_gradients_scattering():
+    pass
+
+
+def maximum_regular_feature_mean():
+    pass
+
+
+def workers_feature_variance():
+    pass
+
+
+def mean_SGD_convergence_rate():
+    pass
+
+
+def rho_SGD_convergence_rate():
+    pass
