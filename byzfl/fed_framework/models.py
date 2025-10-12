@@ -170,18 +170,18 @@ class logreg_mnist(nn.Module):
         """Perform a forward pass through the model."""
         return torch.sigmoid(self._linear(x.view(-1, 784)))
     
-class softmax_mnist(nn.Module):
+class Softmax_mnist(nn.Module):
     """
-    Logistic Regression Model for MNIST.
+    Softmax Regression Model for MNIST.
 
     Description:
     ------------
-    A simple logistic regression model for the MNIST dataset. It consists of 
+    A simple softmax regression model for the MNIST dataset. It consists of 
     a single linear layer.
 
     Examples:
     ---------
-    >>> model = logreg_mnist()
+    >>> model = softmax_mnist()
     >>> x = torch.randn(16, 28*28)  # Batch of 16 MNIST images
     >>> output = model(x)
     >>> print(output.shape)
@@ -195,6 +195,39 @@ class softmax_mnist(nn.Module):
     def forward(self, x):
         """Perform a forward pass through the model."""
         return torch.softmax(self._linear(x.view(-1, 784)))
+    
+class MLP_mnist(nn.Module):
+    """
+    Peng & al. MLP Model for MNIST.
+
+    Description:
+    ------------
+    A simple MLP model for the MNIST dataset. It consists of 
+    3 layers.
+
+    Examples:
+    ---------
+    >>> model = logreg_mnist()
+    >>> x = torch.randn(16, 28*28)  # Batch of 16 MNIST images
+    >>> output = model(x)
+    >>> print(output.shape)
+    torch.Size([16, 10])
+    """
+    def __init__(self, num_classes=10):
+        """Initialize the model parameters."""
+        super().__init__()
+        self.hidden1 = nn.Linear(784, 50)
+        self.hidden2 = nn.Linear(50, 50)
+        self.classification_layer = nn.Linear(50, num_classes)
+
+    def forward(self, x):
+        """Perform a forward pass through the model."""
+        x = self.hidden1(x)
+        x = F.relu(x)
+        x = self.hidden2(x)
+        x = F.relu(x)
+        x = self.classification_layer(x)
+        return x
     
 # ---------------------------------------------------------------------------- #
 
