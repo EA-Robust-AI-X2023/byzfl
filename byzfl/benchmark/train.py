@@ -198,7 +198,7 @@ def start_training(params):
     honest_scattering_list = np.zeros((nb_training_steps))
     byzantine_scattering_list = np.zeros((nb_training_steps))
     feature_mean = np.zeros((nb_training_steps))
-    feature_variance = []
+    feature_variance = {i:np.zeros((nb_training_steps)) for i in range(len(honest_clients))}
 
     start_time = time.time()
 
@@ -263,12 +263,11 @@ def start_training(params):
 
             train_loss_per_client = np.zeros((nb_honest_clients))
             mean_feature = np.zeros((nb_honest_clients))
-            variance_feature = np.zeros((nb_honest_clients))
 
 
             # Honest Clients Compute Gradients
             for i, client in enumerate(honest_clients):
-                train_loss_per_client[i], mean_feature[i], variance_feature[i] = client.compute_gradients()
+                train_loss_per_client[i], mean_feature[i], feature_variance[i][training_step] = client.compute_gradients()
             
             train_loss_list[training_step] = train_loss_per_client.mean()
             
@@ -311,7 +310,6 @@ def start_training(params):
 
             # Save features norm mean
             feature_mean[training_step] = mean_feature.max()
-            feature_variance += [variance_feature]
 
 
         elif training_algorithm_name == "FedAvg":
@@ -398,6 +396,13 @@ def start_training(params):
                 dd_seed,
                 client_id
             )
+
+            file_manager.save_feature_variance(
+                feature_variance=feature_variance[client_id],
+                training_seed=training_seed,
+                data_dist_seed=dd_seed,
+                client_id=client_id
+            )
     
     if store_models:
         file_manager.save_state_dict(
@@ -406,6 +411,24 @@ def start_training(params):
             dd_seed,
             training_step
         )
+
+    file_manager.save_honest_scattering(
+        honest_scattering_list=honest_scattering_list,
+        training_seed=training_seed,
+        data_dist_seed=dd_seed
+    )
+
+    file_manager.save_byzantine_scattering(
+        byzantine_scattering_list=byzantine_scattering_list,
+        training_seed=training_seed,
+        data_dist_seed=dd_seed
+    )
+
+    file_manager.save_mean_feature_norm(
+        feature_mean=mean_feature,
+        training_seed=training_seed,
+        data_dist_seed=dd_seed
+    )
     
     execution_time = end_time - start_time
 
