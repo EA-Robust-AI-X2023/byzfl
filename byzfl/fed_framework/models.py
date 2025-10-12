@@ -169,7 +169,33 @@ class logreg_mnist(nn.Module):
     def forward(self, x):
         """Perform a forward pass through the model."""
         return torch.sigmoid(self._linear(x.view(-1, 784)))
+    
+class softmax_mnist(nn.Module):
+    """
+    Logistic Regression Model for MNIST.
 
+    Description:
+    ------------
+    A simple logistic regression model for the MNIST dataset. It consists of 
+    a single linear layer.
+
+    Examples:
+    ---------
+    >>> model = logreg_mnist()
+    >>> x = torch.randn(16, 28*28)  # Batch of 16 MNIST images
+    >>> output = model(x)
+    >>> print(output.shape)
+    torch.Size([16, 10])
+    """
+    def __init__(self):
+        """Initialize the model parameters."""
+        super().__init__()
+        self._linear = nn.Linear(784, 10)
+
+    def forward(self, x):
+        """Perform a forward pass through the model."""
+        return torch.softmax(self._linear(x.view(-1, 784)))
+    
 # ---------------------------------------------------------------------------- #
 
 class cnn_cifar(nn.Module):
