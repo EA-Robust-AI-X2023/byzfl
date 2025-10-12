@@ -81,9 +81,13 @@ class Client(ModelBaseInterface):
         gradients for flipped targets are computed and stored separately. 
         Additionally, the training loss and accuracy for the batch are 
         computed and recorded.
+        This function returns also the mean and the variance of the features over the given batch
         """
         inputs, targets = self._sample_train_batch()
         inputs, targets = inputs.to(self.device), targets.to(self.device)
+
+        mean_norm = torch.norm(inputs.mean(dim = 0))
+        variance = inputs.view(inputs.size(0), -1).var(unbiased=False)
 
         if self.labelflipping:
             self.model.eval()
@@ -97,7 +101,7 @@ class Client(ModelBaseInterface):
         if self.store_per_client_metrics:
             self.loss_list.append(train_loss_value)
 
-        return train_loss_value
+        return train_loss_value, mean_norm, variance
 
     def _backward_pass(self, inputs, targets, train_acc=False):
         """
