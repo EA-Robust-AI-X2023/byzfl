@@ -5,6 +5,7 @@ import os
 import numpy as np
 from numpy import genfromtxt
 import matplotlib.pyplot as plt
+from managers import FileManager
 import seaborn as sns
 
 
@@ -1025,25 +1026,37 @@ def aggregated_test_heatmap(path_to_results, path_to_plot):
                     plt.close()
 
 
-def honest_gradients_scattering():
+def plot_honest_gradients_scattering(params, path_to_plot, training_seed, data_dist_seed):
+    manager = FileManager(params)
+    honest_gradients_scattering = manager.load_honest_scattering(training_seed, data_dist_seed)
     pass
 
 
-def poisonned_gradients_scattering():
+def plot_poisonned_gradients_scattering(params, path_to_plot, training_seed, data_dist_seed):
+    manager = FileManager(params)
+    poisonned_gradients_scattering = manager.load_byzantine_scattering(training_seed, data_dist_seed)
     pass
 
 
-def maximum_regular_feature_mean():
+def plot_maximum_regular_feature_mean(params, path_to_plot, training_seed, data_dist_seed):
+    manager = FileManager(params)
+    maximum_regular_feature_mean = manager.load_mean_feature_norm(training_seed, data_dist_seed)
     pass
 
 
-def workers_feature_variance():
+def plot_workers_feature_variance(params, path_to_plot, training_seed, data_dist_seed, nb_honest_workers):
+    manager = FileManager(params)
+    workers_feature_variance = {}
+    for i in range(nb_honest_workers):
+        workers_feature_variance[i] = manager.load_feature_variance(training_seed, data_dist_seed, i)
     pass
 
 
 def mean_SGD_convergence_rate():
+    # Je ne vois pas comment calculer le sigma du papier
     pass
 
 
 def rho_SGD_convergence_rate():
+    # Je ne vois pas comment calculer le sigma du papier
     pass
