@@ -98,6 +98,58 @@ class FileManager:
         file_path = os.path.join(acc_dir, f"accuracy_client_{client_id}.txt")
         np.savetxt(file_path, acc_array, fmt="%.4f", delimiter=",")
 
+    def save_honest_scattering(self, honest_scattering_list, training_seed, data_dist_seed):
+        """
+        Save byzantine gradients scattering array for a specific seed value.
+        """
+        acc_dir = os.path.join(
+            self.files_path,
+            f"honest_scattering_tr_seed_{training_seed}_dd_seed_{data_dist_seed}"
+        )
+        os.makedirs(acc_dir, exist_ok=True)
+
+        file_path = os.path.join(acc_dir, f"honest_gradients_scattering.txt")
+        np.savetxt(file_path, honest_scattering_list, fmt="%.4f", delimiter=",")
+
+    def save_byzantine_scattering(self, byzantine_scattering_list, training_seed, data_dist_seed):
+        """
+        Save byzantine gradients scattering array for a specific seed value.
+        """
+        acc_dir = os.path.join(
+            self.files_path,
+            f"byzantine_scattering_tr_seed_{training_seed}_dd_seed_{data_dist_seed}"
+        )
+        os.makedirs(acc_dir, exist_ok=True)
+
+        file_path = os.path.join(acc_dir, f"byzantine_gradients_scattering.txt")
+        np.savetxt(file_path, byzantine_scattering_list, fmt="%.4f", delimiter=",")
+
+    def save_mean_feature_norm(self, feature_mean, training_seed, data_dist_seed):
+        """
+        Save maximum mean feature norm through clients and epochs for a specific and seed value.
+        """
+        acc_dir = os.path.join(
+            self.files_path,
+            f"feature_norm_tr_seed_{training_seed}_dd_seed_{data_dist_seed}"
+        )
+        os.makedirs(acc_dir, exist_ok=True)
+
+        file_path = os.path.join(acc_dir, f"honest_gradients_scattering.txt")
+        np.savetxt(file_path, feature_mean, fmt="%.4f", delimiter=",")
+
+    def save_feature_variance(self, feature_variance, training_seed, data_dist_seed, client_id):
+        """
+        Save a feature variance array for a specific client and seed values.
+        """
+        acc_dir = os.path.join(
+            self.files_path,
+            f"feature_variance_tr_seed_{training_seed}_dd_seed_{data_dist_seed}"
+        )
+        os.makedirs(acc_dir, exist_ok=True)
+
+        file_path = os.path.join(acc_dir, f"feature_variance_client_{client_id}.txt")
+        np.savetxt(file_path, feature_variance, fmt="%.4f", delimiter=",")
+
 
 
 
