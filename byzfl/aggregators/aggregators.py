@@ -2,6 +2,8 @@ import itertools
 import numpy as np
 import torch
 from byzfl.utils.misc import check_vectors_type, distance_tool, shape, ones_vector, random_tool
+import sklearn.metrics.pairwise as smp
+from sklearn.cluster import KMeans
 
 class Average(object):
 
@@ -650,6 +652,93 @@ class MultiKrum(object):
         k = n - self.f
         indices = tools.argpartition(dist, k-1)[:k]
         return tools.mean(vectors[indices], axis=0)
+    
+
+class Lfighter(object):
+
+    r"""
+    Peng & al implementation of Lfighter (with a small change at the end to flatten the mean), change if needed
+    """
+
+    def __init__(self):
+        pass
+
+    def clusters_dissimilarity(self, clusters):
+        n0 = len(clusters[0])
+        n1 = len(clusters[1])
+        m = n0 + n1 
+        cs0 = smp.cosine_similarity(clusters[0]) - np.eye(n0)
+        cs1 = smp.cosine_similarity(clusters[1]) - np.eye(n1)
+        mincs0 = np.min(cs0, axis=1)
+        mincs1 = np.min(cs1, axis=1)
+        ds0 = n0/m * (1 - np.mean(mincs0))
+        ds1 = n1/m * (1 - np.mean(mincs1))
+        return ds0, ds1
+    
+    def __call__(self, vectors):
+        m = len(vectors)
+        dw = [[] for _ in range(m)]
+        for i in range(m):
+            dw[i].append(vectors[i][-2].cpu().data.numpy())
+        dw = np.asarray(dw)
+        dw = np.squeeze(dw)
+        norms = np.linalg.norm(dw, axis=-1)
+        memory = np.sum(norms, axis=0)
+        max_two_freq_classes = memory.argsort()[-2:]
+        # print('Potential source and target classes:', max_two_freq_classes)
+        data = []
+        for i in range(m):
+            data.append(dw[i][max_two_freq_classes].reshape(-1))
+
+        kmeans = KMeans(n_clusters=2, random_state=0, n_init='auto').fit(data)
+        labels = kmeans.labels_
+
+        clusters = {0:[], 1: []}
+        for i, l in enumerate(labels):
+            clusters[l].append(data[i])
+
+        good_cl = 0
+        cs0, cs1 = self.clusters_dissimilarity(clusters)
+        if cs0 < cs1:
+            good_cl = 1
+        
+        remain_worker_grad = []
+        for i, l in enumerate(labels):
+            if l == good_cl:
+                remain_worker_grad.append(vectors[i])
+        
+        mean = [torch.zeros_like(para, requires_grad=False) for para in vectors[0]]
+        for grad in remain_worker_grad:
+            for i, g in enumerate(grad):
+                mean[i].add_(g, alpha=1 / len(remain_worker_grad))
+
+        mean_flat = torch.cat([p.view(-1) for p in mean])
+
+        return mean_flat
+    
+
+class Faba(object):
+
+    r"""
+    Pend & al implementation of FABA aggregator, change if needed
+    """
+
+    def __init__(self):
+        pass
+
+    def call(self, vectors):
+        remain = vectors
+        byzantine_size = len(self.byzantine_nodes)
+
+        for _ in range(byzantine_size):
+            mean = torch.mean(remain, dim=0)
+            # remove the largest 'byzantine_size' model
+            distances = torch.tensor([
+                torch.norm(model - mean) for model in remain
+            ])
+            remove_index = distances.argmax()
+            remain = remain[torch.arange(remain.size(0)) != remove_index]
+        return remain.mean(dim=0)
 
 
 class CenteredClipping(object):

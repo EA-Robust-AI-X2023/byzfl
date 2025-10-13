@@ -1029,18 +1029,24 @@ def aggregated_test_heatmap(path_to_results, path_to_plot):
 def plot_honest_gradients_scattering(params, path_to_plot, training_seed, data_dist_seed):
     manager = FileManager(params)
     honest_gradients_scattering = manager.load_honest_scattering(training_seed, data_dist_seed)
+
+    # Faire les représentations et les sauvegarder au bon endroit
     pass
 
 
 def plot_poisonned_gradients_scattering(params, path_to_plot, training_seed, data_dist_seed):
     manager = FileManager(params)
     poisonned_gradients_scattering = manager.load_byzantine_scattering(training_seed, data_dist_seed)
+
+    # Faire les représentations et les sauvegarder au bon endroit
     pass
 
 
 def plot_maximum_regular_feature_mean(params, path_to_plot, training_seed, data_dist_seed):
     manager = FileManager(params)
     maximum_regular_feature_mean = manager.load_mean_feature_norm(training_seed, data_dist_seed)
+
+    # Faire les représentations et les sauvegarder au bon endroit
     pass
 
 
@@ -1049,6 +1055,8 @@ def plot_workers_feature_variance(params, path_to_plot, training_seed, data_dist
     workers_feature_variance = {}
     for i in range(nb_honest_workers):
         workers_feature_variance[i] = manager.load_feature_variance(training_seed, data_dist_seed, i)
+
+    # Faire les représentations et les sauvegarder au bon endroit
     pass
 
 
