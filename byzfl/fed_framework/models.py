@@ -171,7 +171,7 @@ class logreg_mnist(nn.Module):
         return torch.sigmoid(self._linear(x.view(-1, 784)))
     
 
-class Softmax_mnist(nn.Module):
+class SOFTMAX_MNIST_PENG(nn.Module):
     """
     Softmax Regression Model for MNIST.
 
@@ -199,7 +199,7 @@ class Softmax_mnist(nn.Module):
         return torch.softmax(self._linear(x.view(-1, 784)))
     
 
-class MLP_mnist(nn.Module):
+class MLP_MNIST_PENG(nn.Module):
     """
     Peng & al. MLP Model for MNIST.
 
@@ -234,7 +234,7 @@ class MLP_mnist(nn.Module):
         return x
    
     
-class CNN_mnist(nn.Module):
+class CNN_MNIST_PENG(nn.Module):
     """
     Peng & al. CNN Model for MNIST.
 
