@@ -54,7 +54,7 @@ class DataDistributor:
             A dictionary containing configuration for the data distribution. Must include:
             - "data_distribution_name" (str): The type of data distribution (e.g., "iid", "gamma_similarity_niid").
             - "distribution_parameter" (float): Parameter specific to the chosen distribution.
-            - "nb_honest" (int): Number of honest participants.
+            - "nb_workers" (int): Number of workers.
             - "data_loader" (DataLoader): The DataLoader of the dataset to be split.
             - "batch_size" (int): Batch size for the resulting DataLoader objects.
         """
@@ -73,9 +73,10 @@ class DataDistributor:
         else:
             self.distribution_parameter = None
 
-        if not isinstance(params["nb_honest"], int) or params["nb_honest"] <= 0:
-            raise ValueError("nb_honest must be a positive integer")
-        self.nb_honest = params["nb_honest"]
+        if not isinstance(params["nb_workers"], int) or params["nb_workers"] <= 0:
+            raise ValueError("nb_workers must be a positive integer")
+        
+        self.nb_workers = params["nb_honest"] + params["nb_poisonned"]
 
         if not (isinstance(params["data_loader"], torch.utils.data.DataLoader) or isinstance(params["data_loader"], torch.utils.data.Subset)):
             raise TypeError("data_loader must be an instance of torch.utils.data.DataLoader or torch.utils.data.Subset")
@@ -84,6 +85,7 @@ class DataDistributor:
         if not isinstance(params["batch_size"], int) or params["batch_size"] <= 0:
             raise ValueError("batch_size must be a positive integer")
         self.batch_size = params["batch_size"]
+
 
 
     def split_data(self):
@@ -134,7 +136,7 @@ class DataDistributor:
             A list of arrays where each array contains indices for one client.
         """
         random.shuffle(idx)
-        return np.array_split(idx, self.nb_honest)
+        return np.array_split(idx, self.nb_workers)
 
     def extreme_niid_idx(self, targets, idx):
         """
@@ -153,9 +155,9 @@ class DataDistributor:
             A list of arrays where each array contains indices for one client.
         """
         if len(idx) == 0:
-            return list([[]] * self.nb_honest)
+            return list([[]] * self.nb_workers)
         sorted_idx = np.array(sorted(zip(targets[idx], idx)))[:, 1]
-        return np.array_split(sorted_idx, self.nb_honest)
+        return np.array_split(sorted_idx, self.nb_workers)
 
     def gamma_niid_idx(self, targets, idx):
         """
@@ -176,7 +178,7 @@ class DataDistributor:
         nb_similarity = int(len(idx) * self.distribution_parameter)
         iid = self.iid_idx(idx[:nb_similarity])
         niid = self.extreme_niid_idx(targets, idx[nb_similarity:])
-        split_idx = [np.concatenate((iid[i], niid[i])) for i in range(self.nb_honest)]
+        split_idx = [np.concatenate((iid[i], niid[i])) for i in range(self.nb_workers)]
         return [node_idx.astype(int) for node_idx in split_idx]
 
     def dirichlet_niid_idx(self, targets, idx):
@@ -196,11 +198,11 @@ class DataDistributor:
             A list of arrays where each array contains indices for one client.
         """
         c = len(torch.unique(targets))
-        sample = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_honest), size=c)
+        sample = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_workers), size=c)
         p = np.cumsum(sample, axis=1)[:, :-1]
         aux_idx = [np.where(targets[idx] == k)[0] for k in range(c)]
         aux_idx = [np.split(aux_idx[k], (p[k] * len(aux_idx[k])).astype(int)) for k in range(c)]
-        aux_idx = [np.concatenate([aux_idx[i][j] for i in range(c)]) for j in range(self.nb_honest)]
+        aux_idx = [np.concatenate([aux_idx[i][j] for i in range(c)]) for j in range(self.nb_workers)]
         idx = np.array(idx)
         return [list(idx[aux_idx[i]]) for i in range(len(aux_idx))]
 

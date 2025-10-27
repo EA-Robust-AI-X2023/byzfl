@@ -124,7 +124,7 @@ def start_training(params):
     data_distributor = DataDistributor({
         "data_distribution_name": params_manager.get_name_data_distribution(),
         "distribution_parameter": params_manager.get_parameter_data_distribution(),
-        "nb_honest": nb_honest_clients,
+        "nb_workers": nb_honest_clients + nb_byz_clients,
         "data_loader": train_dataset,
         "batch_size": batch_size,
     })
@@ -176,7 +176,7 @@ def start_training(params):
             "milestones": params_manager.get_milestones(),
             "learning_rate_decay": params_manager.get_learning_rate_decay(),
             "LabelFlipping": "LabelFlipping" == params_manager.get_attack_name(),
-            "training_dataloader": client_dataloaders[i],
+            "training_dataloader": client_dataloaders[i + nb_honest_clients],
             "momentum": params_manager.get_honest_clients_momentum(),
             "nb_labels": params_manager.get_nb_labels(),
             "store_per_client_metrics": params_manager.get_store_per_client_metrics(),
