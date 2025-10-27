@@ -1132,9 +1132,7 @@ class StaticLabelFlipping(object):
     
     def __call__(self, model, inputs, outputs):      
         classes = list(set(outputs))
-        mapping = {}
-        for class_ in classes:
-            mapping[class_] = random.choice([c for c in classes if c !=class_])
+        mapping = {outputs : model.nb_classes - 1 - outputs for outputs in classes}
 
         flipped_outputs = [mapping[output] for output in outputs[:int(self.p*len(outputs))]] + outputs[int(self.p*len(outputs)):]
 

@@ -271,7 +271,7 @@ def start_training(params):
 
             train_loss_per_client = np.zeros((nb_honest_clients))
             mean_feature = np.zeros((nb_honest_clients))
-            gradient_variances = np.zeros((nb_honest_clients))
+            gradient_variances = np.zeros((nb_honest_clients + nb_byz_clients))
 
 
             # Honest Clients Compute Gradients
@@ -287,8 +287,8 @@ def start_training(params):
             honest_gradients = [client.get_flat_gradients_with_momentum() for client in honest_clients]
 
             # Apply poisonning attack
-            for poisonned_client in poisonned_clients:
-                poisonned_client.compute_gradients()
+            for i, poisonned_client in enumerate(poisonned_clients):
+                _, _, _, gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients()
 
             poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
 

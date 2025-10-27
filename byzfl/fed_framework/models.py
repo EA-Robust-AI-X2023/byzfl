@@ -188,10 +188,11 @@ class Softmax_mnist(nn.Module):
     >>> print(output.shape)
     torch.Size([16, 10])
     """
-    def __init__(self):
+    def __init__(self, nb_classes=10):
         """Initialize the model parameters."""
         super().__init__()
-        self._linear = nn.Linear(784, 10)
+        self._linear = nn.Linear(784, nb_classes)
+        self.nb_classes = nb_classes
 
     def forward(self, x):
         """Perform a forward pass through the model."""
@@ -215,12 +216,13 @@ class MLP_mnist(nn.Module):
     >>> print(output.shape)
     torch.Size([16, 10])
     """
-    def __init__(self, num_classes=10):
+    def __init__(self, nb_classes=10):
         """Initialize the model parameters."""
         super().__init__()
         self.hidden1 = nn.Linear(784, 50)
         self.hidden2 = nn.Linear(50, 50)
-        self.classification_layer = nn.Linear(50, num_classes)
+        self.classification_layer = nn.Linear(50, nb_classes)
+        self.nb_classes = nb_classes
 
     def forward(self, x):
         """Perform a forward pass through the model."""
@@ -248,14 +250,15 @@ class CNN_mnist(nn.Module):
     >>> print(output.shape)
     torch.Size([16, 10])
     """
-    def __init__(self):
+    def __init__(self, nb_classes=10):
         """Initialize the model parameters."""
         super().__init__()
         self.conv1 = nn.Conv2d(3, 16, 3, padding=1)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(16, 32, 3, padding=1)
         self.fc1 = nn.Linear(32 * 8 * 8, 128)
-        self.fc2 = nn.Linear(128, 10)
+        self.fc2 = nn.Linear(128, nb_classes)
+        self.nb_classes = nb_classes
 
     def forward(self, x):
         """Perform a forward pass through the model."""
