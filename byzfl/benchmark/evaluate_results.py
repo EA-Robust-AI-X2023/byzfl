@@ -5,7 +5,7 @@ import os
 import numpy as np
 from numpy import genfromtxt
 import matplotlib.pyplot as plt
-from managers import FileManager
+from byzfl.benchmark.managers import FileManager
 import seaborn as sns
 
 
