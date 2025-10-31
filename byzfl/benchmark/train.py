@@ -302,7 +302,7 @@ def start_training(params):
 
             # Evaluate byzantine gradients scatterings
             max_dist = 0
-            for i in range(len(nb_byz_clients)):
+            for i in range(nb_byz_clients):
                 dist = torch.norm(byz_vector[i] - gradient)
                 if dist > max_dist:
                     max_dist = dist
