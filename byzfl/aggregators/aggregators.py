@@ -779,14 +779,17 @@ class Faba(object):
     Pend & al implementation of FABA aggregator, change if needed
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, f=0):
+        if not isinstance(f, int) or f < 0:
+            raise ValueError("f must be a non-negative integer")
+        self.f = f
 
-    def call(self, vectors):
+    def __call__(self, vectors):
         remain = vectors
-        byzantine_size = len(self.byzantine_nodes)
 
-        for _ in range(byzantine_size):
+        for _ in range(self.f):
+            if not torch.is_tensor(remain):
+                remain=torch.stack(remain)
             mean = torch.mean(remain, dim=0)
             # remove the largest 'byzantine_size' model
             distances = torch.tensor([
