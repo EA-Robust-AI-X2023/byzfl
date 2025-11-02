@@ -278,10 +278,11 @@ def start_training(params):
 
             # Honest Clients Compute Gradients
             for i, client in enumerate(honest_clients):
-                train_loss_per_client[i], 
+                (
+                    train_loss_per_client[i], 
                 mean_feature[i], 
                 feature_variance[i][training_step], 
-                gradient_variances[i] = client.compute_gradients()
+                gradient_variances[i]) = client.compute_gradients()
             
             train_loss_list[training_step] = train_loss_per_client.mean()
             
