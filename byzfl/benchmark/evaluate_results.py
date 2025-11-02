@@ -1028,7 +1028,7 @@ def aggregated_test_heatmap(path_to_results, path_to_plot):
 
 def plot_honest_gradients_scattering(path_to_results, path_to_plot):
     """
-    Plots the honest gradient scatterings $\xi$ for different configurations.
+    Plot honest gradient scatterings for different configurations
     """
     try:
         with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
