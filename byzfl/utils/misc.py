@@ -57,6 +57,9 @@ def max_distance_to_gradient(gradients: torch.Tensor, gradient: torch.Tensor) ->
     """
     Compute the maximum distance between a set of gradients and a reference gradient.
     """
+    #convert gradients to a tensor if necessary
+    if isinstance(gradients, list):
+        gradients = torch.stack(gradients)
     distances = torch.norm(gradients - gradient.unsqueeze(0), dim=1)
     return distances.max()
 
