@@ -144,7 +144,8 @@ class Client(ModelBaseInterface):
         individual_gradients = torch.stack(individual_gradients)
         
         # Compute the variance of the gradients across the batch
-        gradient_variance = individual_gradients.var(dim=0, unbiased=False).item()
+        gradient_variance = individual_gradients.var(dim=0, unbiased=False).mean().item()
+        
 
         if train_acc:
             # Compute and store train accuracy
