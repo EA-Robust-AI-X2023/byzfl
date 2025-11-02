@@ -166,6 +166,12 @@ def start_training(params):
 
     # Byzantine Client Setup
 
+    # Byzantine Client Setup
+    attack_parameters={}
+    attack_parameters["parameters"] = params_manager.get_attack_parameters()
+    attack_parameters["p"] = 1.0 if "p" not in params_manager.get_attack_info() else params_manager.get_attack_info()["p"] #architecture de p à revoir
+    attack_parameters["name"] = params_manager.get_attack_name()
+
     poisonned_clients = [
         PoisoningClient({"model_name": params_manager.get_model_name(),
             "device": params_manager.get_device(),
@@ -179,15 +185,11 @@ def start_training(params):
             "training_dataloader": client_dataloaders[i + nb_honest_clients],
             "momentum": params_manager.get_honest_clients_momentum(),
             "nb_labels": params_manager.get_nb_labels(),
-            "store_per_client_metrics": params_manager.get_store_per_client_metrics(),
-            "attack_params": params_manager.get_attack_parameters(),
-        }) for i in range(nb_byz_clients)
+            "store_per_client_metrics": params_manager.get_store_per_client_metrics()},
+            attack_parameters,
+        ) for i in range(nb_byz_clients)
     ]
 
-    attack_parameters = params_manager.get_attack_parameters()
-    attack_parameters["aggregator_info"] = params_manager.get_aggregator_info()
-    attack_parameters["pre_agg_list"] = params_manager.get_preaggregators()
-    attack_parameters["f"] = nb_byz_clients
 
 
     set_random_seed(training_seed)
