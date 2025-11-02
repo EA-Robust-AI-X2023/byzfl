@@ -196,7 +196,7 @@ class SOFTMAX_MNIST_PENG(nn.Module):
 
     def forward(self, x):
         """Perform a forward pass through the model."""
-        return torch.softmax(self._linear(x.view(-1, 784)))
+        return torch.softmax(self._linear(x.view(-1, 784)), dim=1)
     
 
 class MLP_MNIST_PENG(nn.Module):
