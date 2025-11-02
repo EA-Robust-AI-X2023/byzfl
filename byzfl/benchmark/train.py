@@ -180,7 +180,7 @@ def start_training(params):
             "momentum": params_manager.get_honest_clients_momentum(),
             "nb_labels": params_manager.get_nb_labels(),
             "store_per_client_metrics": params_manager.get_store_per_client_metrics(),
-            "attack_parameters": params_manager.get_attack_parameters(),
+            "attack_params": params_manager.get_attack_parameters(),
         }) for i in range(nb_byz_clients)
     ]
 

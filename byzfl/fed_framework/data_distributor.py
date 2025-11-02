@@ -76,7 +76,7 @@ class DataDistributor:
         if not isinstance(params["nb_workers"], int) or params["nb_workers"] <= 0:
             raise ValueError("nb_workers must be a positive integer")
         
-        self.nb_workers = params["nb_honest"] + params["nb_poisonned"]
+        self.nb_workers = params["nb_workers"]
 
         if not (isinstance(params["data_loader"], torch.utils.data.DataLoader) or isinstance(params["data_loader"], torch.utils.data.Subset)):
             raise TypeError("data_loader must be an instance of torch.utils.data.DataLoader or torch.utils.data.Subset")
