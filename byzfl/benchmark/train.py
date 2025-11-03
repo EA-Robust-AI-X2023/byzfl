@@ -306,12 +306,8 @@ def start_training(params):
             honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients, gradient)
 
             # Evaluate byzantine gradients scatterings
-            max_dist = 0
-            for i in range(nb_byz_clients):
-                dist = torch.norm(byz_vector[i] - gradient)
-                if dist > max_dist:
-                    max_dist = dist
-            poisonned_scattering_list[training_step] = max_dist
+        
+            poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients, gradient)
 
             # Save features norm mean
             feature_mean[training_step] = mean_feature.max()
