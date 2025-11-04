@@ -691,7 +691,7 @@ class Lfighter(object):
         return w_avg
 
     # Adapt to gradients ...
-    def aggregate(self, global_model, local_models, ptypes):
+    def __call__(self, global_model, local_models):
 
         local_weights = [copy.deepcopy(model).state_dict() for model in local_models]
         m = len(local_models)

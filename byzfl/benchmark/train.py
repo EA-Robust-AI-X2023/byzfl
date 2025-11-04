@@ -269,7 +269,7 @@ def start_training(params):
                     training_step
                 )
         
-        if training_algorithm_name == "DSGD":
+        if training_algorithm_name == "DSGD" and params_manager.get_aggregator_name() != "Lfighter":
 
             train_loss_per_client = np.zeros((nb_honest_clients))
             mean_feature = np.zeros((nb_honest_clients))
@@ -314,32 +314,54 @@ def start_training(params):
             gradient_variance[training_step] = gradient_variances.max()
 
 
-        # elif training_algorithm_name == "FedAvg":
+        elif training_algorithm_name == "FedAvg" or params_manager.get_aggregator_name() == "Lfighter":
 
-        #     idx_selected_clients = np.random.choice(
-        #         range(nb_honest_clients + nb_byz_clients), 
-        #         size=int(nb_clients_to_sample), 
-        #         replace=False
-        #     )
+            train_loss_per_client = np.zeros((nb_honest_clients))
+            mean_feature = np.zeros((nb_honest_clients))
+            gradient_variances = np.zeros((nb_honest_clients + nb_byz_clients))
+            honest_weights = []
 
-        #     idx_honest_clients = idx_selected_clients[idx_selected_clients < nb_honest_clients]
-        #     count_byz_clients = len(idx_selected_clients) - len(idx_honest_clients)
+
+            # Honest Clients Compute Gradients
+            for i, client in enumerate(honest_clients):
+                (
+                    train_loss_per_client[i], 
+                mean_feature[i], 
+                feature_variance[i][training_step], 
+                gradient_variances[i]) = client.compute_gradients_and_update()
+                honest_weights.append(honest_clients[i].get_flat_parameters())
             
-        #     train_loss_per_client = np.zeros((len(idx_honest_clients)))
-        #     honest_weights = []
-
-        #     for idx, i in enumerate(idx_honest_clients):
-        #         train_loss_per_client[idx] = honest_clients[i].compute_model_update(local_steps_per_client)
-        #         honest_weights.append(honest_clients[i].get_flat_parameters())
+            train_loss_list[training_step] = train_loss_per_client.mean()
             
-        #     train_loss_list[training_step] = train_loss_per_client.mean()
+            # Aggregate Honest Gradients
+            honest_gradients = [client.get_flat_gradients_with_momentum() for client in honest_clients]
+            poisonned_weights = []
 
-        #     byz_client.f = count_byz_clients
-        #     byz_weights = byz_client.apply_attack(honest_weights)
+            # Apply poisonning attack
+            for i, poisonned_client in enumerate(poisonned_clients):
+                _, _, _, gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients_and_update()
+                poisonned_weights.append(poisonned_client.get_flat_gradients())
 
-        #     weights = honest_weights + byz_weights
+            poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
 
-        #     server.update_model_with_weights(weights)
+            # Compute the gradient
+            gradients = honest_gradients + poisonned_gradients
+            gradient = torch.stack(honest_gradients).mean(dim = 0)
+
+            # Evaluate honest gradients scatterings
+            honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients, gradient)
+
+            # Evaluate byzantine gradients scatterings
+        
+            poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients, gradient)
+
+            # Save features norm mean
+            feature_mean[training_step] = mean_feature.max()
+            gradient_variance[training_step] = gradient_variances.max()
+            
+            # Combine Honest and poisonned Weights
+            weights = honest_weights + poisonned_weights
+            server.update_model_with_weights(weights)
 
         else:
             raise ValueError(f"Training algorithm {training_algorithm_name} not supported")

@@ -103,6 +103,22 @@ class Client(ModelBaseInterface):
 
         return train_loss_value, mean_norm, feature_variance, gradient_variance
 
+    def compute_gradients_and_update(self):
+        """
+        Description
+        -----------
+        Computes the gradients of the local model's loss function for the 
+        current training batch and updates the model parameters using these 
+        gradients. If the `LabelFlipping` attack is enabled, gradients for 
+        flipped targets are computed and stored separately. Additionally, 
+        the training loss and accuracy for the batch are computed and recorded.
+        This function returns also the mean and the variance of the features over the given batch.
+        """
+        train_loss, mean_norm, feature_variance, gradient_variance = self.compute_gradients()
+        self.optimizer.step()
+        return train_loss, mean_norm, feature_variance, gradient_variance
+    
+    
     def _backward_pass(self, inputs, targets, train_acc=False):
         """
         Description
