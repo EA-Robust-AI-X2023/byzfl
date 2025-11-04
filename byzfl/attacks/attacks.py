@@ -1116,39 +1116,3 @@ class Gaussian:
         random = random_tool(honest_vectors)
         shape = honest_vectors.shape[1]
         return random.normal(loc=self.mu, scale=self.sigma, size=shape)
-
-
-# This attack method calculates the average of the honest vectors. 
-# This behavior arises because the Label Flipping attack manipulates 
-# the labels of the data rather than directly altering the computed gradients. 
-# As a result, the attack occurs on the client side before the gradients are computed.
-class StaticLabelFlipping(object): 
-    """
-    Implementation of static label flipping from Peng & al.
-    """
-
-    def __init__(self, p):
-        self.p = p        
-    
-    def __call__(self, model, inputs, outputs):      
-        classes = list(set(outputs))
-        mapping = {outputs : model.nb_classes - 1 - outputs for outputs in classes}
-
-        flipped_outputs = [mapping[output] for output in outputs[:int(self.p*len(outputs))]] + outputs[int(self.p*len(outputs)):]
-
-        return inputs, flipped_outputs
-    
-
-class DynamicLabelFlipping(object):
-    """
-    Implementation of dynamic label flipping from Peng & al.
-    """
-
-    def __init__(self, p):
-        self.p = p
-
-    def __call__(self, model, inputs, outputs):
-        flipped_outputs = model(inputs).argmin(dim=1).cpu().numpy()
-        return inputs, flipped_outputs
-
-        
