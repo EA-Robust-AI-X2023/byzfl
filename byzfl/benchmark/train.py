@@ -207,7 +207,7 @@ def start_training(params):
     honest_scattering_list = np.zeros((nb_training_steps))
     poisonned_scattering_list = np.zeros((nb_training_steps))
     feature_mean = np.zeros((nb_training_steps))
-    feature_variance = {i:np.zeros((nb_training_steps)) for i in range(len(honest_clients))}
+    feature_variance = {i:np.zeros((nb_training_steps)) for i in range(nb_honest_clients + nb_byz_clients)}
     gradient_variance = np.zeros((nb_training_steps))
 
     start_time = time.time()
@@ -291,7 +291,7 @@ def start_training(params):
 
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
-                _, _, _, gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients()
+                _, _, feature_variance[i + nb_honest_clients][training_step], gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients()
 
             poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
 
@@ -339,7 +339,7 @@ def start_training(params):
 
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
-                _, _, _, gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients_and_update()
+                _, _, feature_variance[i + nb_honest_clients][training_step], gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients_and_update()
                 poisonned_weights.append(poisonned_client.get_flat_gradients())
 
             poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
@@ -426,6 +426,15 @@ def start_training(params):
                 training_seed=training_seed,
                 data_dist_seed=dd_seed,
                 client_id=client_id
+            )
+        
+        for client_id, client in enumerate(poisonned_clients):
+            
+            file_manager.save_feature_variance(
+                feature_variance=feature_variance[client_id + nb_honest_clients],
+                training_seed=training_seed,
+                data_dist_seed=dd_seed,
+                client_id=client_id + nb_honest_clients
             )
     
     if store_models:
