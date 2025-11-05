@@ -72,7 +72,7 @@ class Client(ModelBaseInterface):
             self.train_iterator = iter(self.training_dataloader)
             return next(self.train_iterator)
 
-    def compute_gradients(self):
+    def compute_gradients(self, make_feature_measures = True, compute_variance = True):
         """
         Description
         -----------
@@ -86,9 +86,6 @@ class Client(ModelBaseInterface):
         inputs, targets = self._sample_train_batch()
         inputs, targets = inputs.to(self.device), targets.to(self.device)
 
-        mean_norm = torch.norm(inputs.mean(dim = 0))
-        feature_variance = torch.var(inputs, dim=0, unbiased = True).sum()
-
         if self.labelflipping:
             self.model.eval()
             targets_flipped = targets.sub(self.nb_labels - 1).mul(-1)
@@ -96,14 +93,22 @@ class Client(ModelBaseInterface):
             self.gradient_LF = self.get_dict_gradients()
             self.model.train()
 
-        train_loss_value, gradient_variance = self._backward_pass(inputs, targets, train_acc=self.store_per_client_metrics)
-
         if self.store_per_client_metrics:
             self.loss_list.append(train_loss_value)
 
-        return train_loss_value, mean_norm, feature_variance, gradient_variance
+        if make_feature_measures:
 
-    def compute_gradients_and_update(self):
+            train_loss_value, gradient_variance = self._backward_pass(inputs, targets, train_acc=self.store_per_client_metrics, compute_variance= compute_variance)
+            mean_norm = torch.norm(inputs.mean(dim = 0))
+            feature_variance = torch.var(inputs, dim=0, unbiased = True).sum()
+
+            return train_loss_value, mean_norm, feature_variance, gradient_variance
+        
+        else : 
+            train_loss_value = self._backward_pass(inputs, targets, train_acc=self.store_per_client_metrics, return_variance = False)
+            return train_loss_value, None, None, None
+
+    def compute_gradients_and_update(self, make_feature_measures = True, compute_gradients_variance = True):
         """
         Description
         -----------
@@ -114,12 +119,13 @@ class Client(ModelBaseInterface):
         the training loss and accuracy for the batch are computed and recorded.
         This function returns also the mean and the variance of the features over the given batch.
         """
-        train_loss, mean_norm, feature_variance, gradient_variance = self.compute_gradients()
+        train_loss, mean_norm, feature_variance, gradient_variance = self.compute_gradients(make_feature_measures, compute_variance = compute_gradients_variance)
         self.optimizer.step()
+        
         return train_loss, mean_norm, feature_variance, gradient_variance
     
     
-    def _backward_pass(self, inputs, targets, train_acc=False):
+    def _backward_pass(self, inputs, targets, train_acc=False, compute_variance = True):
         """
         Description
         -----------
@@ -158,10 +164,6 @@ class Client(ModelBaseInterface):
         loss_value = loss.item()
 
         individual_gradients = torch.stack(individual_gradients)
-        
-        # Compute the variance of the gradients across the batch
-        gradient_variance = individual_gradients.var(dim=0, unbiased=False).mean().item()
-        
 
         if train_acc:
             # Compute and store train accuracy
@@ -171,7 +173,14 @@ class Client(ModelBaseInterface):
             acc = correct / total
             self.train_acc_list.append(acc)
 
-        return loss_value, gradient_variance
+        if compute_variance:
+            # Compute the variance of the gradients across the batch
+            gradient_variance = individual_gradients.var(dim=0, unbiased=False).mean().item()
+
+            return loss_value, gradient_variance
+        
+        else :
+            return loss_value, None
     
     def compute_model_update(self, num_rounds):
         """
