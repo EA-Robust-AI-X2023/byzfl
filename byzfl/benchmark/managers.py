@@ -364,6 +364,9 @@ class ParamsManager(object):
     def get_compute_gradient_variance(self):
         pass
 
+    def get_compute_gradient_scatterings(self):
+        pass
+
     # ----------------------------------------------------------------------
     #  Model
     # ----------------------------------------------------------------------
