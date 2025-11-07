@@ -134,7 +134,7 @@ class FileManager:
         )
         os.makedirs(acc_dir, exist_ok=True)
 
-        file_path = os.path.join(acc_dir, f"honest_gradients_scattering.txt")
+        file_path = os.path.join(acc_dir, f"feature_norm.txt")
         np.savetxt(file_path, feature_mean, fmt="%.4f", delimiter=",")
 
     def save_gradients_variance(self, gradients_variance, training_seed, data_dist_seed):
