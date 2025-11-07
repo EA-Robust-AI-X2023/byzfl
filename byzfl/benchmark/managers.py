@@ -357,6 +357,15 @@ class ParamsManager(object):
         path = ["benchmark_config", "nb_steps"]
         read = self._read_object(path)
         return self._parameter_to_use(default, read)
+    
+    def get_make_feature_measures(self):
+        pass
+
+    def get_compute_gradient_variance(self):
+        pass
+
+    def get_compute_gradient_scatterings(self):
+        pass
 
     # ----------------------------------------------------------------------
     #  Model

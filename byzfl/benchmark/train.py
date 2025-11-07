@@ -165,8 +165,6 @@ def start_training(params):
     })
 
     # Byzantine Client Setup
-
-    # Byzantine Client Setup
     attack_parameters={}
     attack_parameters["parameters"] = params_manager.get_attack_parameters()
     attack_parameters["p"] = 1.0 if "p" not in params_manager.get_attack_info() else params_manager.get_attack_info()["p"] #architecture de p à revoir
@@ -191,11 +189,14 @@ def start_training(params):
     ]
 
 
-
     set_random_seed(training_seed)
 
     evaluation_delta = params_manager.get_evaluation_delta()
     evaluate_on_test = params_manager.get_evaluate_on_test()
+
+    make_feature_measures = params_manager.get_make_feature_measures()
+    compute_gradient_variance = params_manager.get_compute_gradient_variance()
+    compute_gradient_scatterings = params_manager.get_compute_gradient_scatterings()
 
     store_models = params_manager.get_store_models()
     store_per_client_metrics = params_manager.get_store_per_client_metrics()
@@ -207,7 +208,7 @@ def start_training(params):
     honest_scattering_list = np.zeros((nb_training_steps))
     poisonned_scattering_list = np.zeros((nb_training_steps))
     feature_mean = np.zeros((nb_training_steps))
-    feature_variance = {i:np.zeros((nb_training_steps)) for i in range(len(honest_clients))}
+    feature_variance = {i:np.zeros((nb_training_steps)) for i in range(nb_honest_clients + nb_byz_clients)}
     gradient_variance = np.zeros((nb_training_steps))
 
     start_time = time.time()
@@ -221,17 +222,6 @@ def start_training(params):
 
     if training_algorithm_name not in ["DSGD"]:
         raise ValueError(f"Training algorithm {training_algorithm_name} not supported, supported algorithms are 'DSGD' and 'FedAvg'")
-    
-    # if training_algorithm_name == "FedAvg" and attack_name == "LabelFlipping":
-    #     raise ValueError("FedAvg does not support Label Flipping attack.")
-    
-    # if training_algorithm_name == "FedAvg":
-
-    #     training_algorithm_parameters = params_manager.get_training_algorithm_parameters()
-
-    #     proportion_selected_clients = training_algorithm_parameters["proportion_selected_clients"]
-    #     local_steps_per_client = training_algorithm_parameters["local_steps_per_client"]
-    #     nb_clients_to_sample = int(nb_honest_clients * proportion_selected_clients)
 
     # Training Loop
     for training_step in range(nb_training_steps):
@@ -282,7 +272,8 @@ def start_training(params):
                     train_loss_per_client[i], 
                 mean_feature[i], 
                 feature_variance[i][training_step], 
-                gradient_variances[i]) = client.compute_gradients()
+                gradient_variances[i]) = client.compute_gradients(make_feature_measures=make_feature_measures, 
+                                                                  compute_gradient_variance=compute_gradient_variance)
             
             train_loss_list[training_step] = train_loss_per_client.mean()
             
@@ -291,7 +282,7 @@ def start_training(params):
 
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
-                _, _, _, gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients()
+                _, _, feature_variance[i + nb_honest_clients][training_step], gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients()
 
             poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
 
@@ -302,16 +293,19 @@ def start_training(params):
             server.update_model_with_gradients(gradients)
             gradient = torch.stack(honest_gradients).mean(dim = 0)
 
-            # Evaluate honest gradients scatterings
-            honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients, gradient)
+            if compute_gradient_scatterings:
+                # Evaluate honest gradients scatterings
+                honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients, gradient)
 
-            # Evaluate byzantine gradients scatterings
-        
-            poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients, gradient)
+                # Evaluate poisonned gradients scatterings
+                poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients, gradient)
 
-            # Save features norm mean
-            feature_mean[training_step] = mean_feature.max()
-            gradient_variance[training_step] = gradient_variances.max()
+            if make_feature_measures:
+                # Save features norm mean
+                feature_mean[training_step] = mean_feature.max()
+
+            if compute_gradient_variance:
+                gradient_variance[training_step] = gradient_variances.max()
 
 
         elif training_algorithm_name == "FedAvg" or params_manager.get_aggregator_name() == "Lfighter":
@@ -328,7 +322,8 @@ def start_training(params):
                     train_loss_per_client[i], 
                 mean_feature[i], 
                 feature_variance[i][training_step], 
-                gradient_variances[i]) = client.compute_gradients_and_update()
+                gradient_variances[i]) = client.compute_gradients_and_update(make_feature_measures=make_feature_measures,
+                                                                             compute_gradients_variance=compute_gradient_variance)
                 honest_weights.append(honest_clients[i].get_flat_parameters())
             
             train_loss_list[training_step] = train_loss_per_client.mean()
@@ -339,25 +334,33 @@ def start_training(params):
 
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
-                _, _, _, gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients_and_update()
-                poisonned_weights.append(poisonned_client.get_flat_gradients())
+                _, 
+                _, 
+                feature_variance[i + nb_honest_clients][training_step], 
+                gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, 
+                                                                                                        compute_gradients_variance=compute_gradient_variance)
+                poisonned_weights.append(poisonned_client.get_flat_parameters())
 
-            poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
+            if compute_gradient_scatterings:
+                poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
 
-            # Compute the gradient
-            gradients = honest_gradients + poisonned_gradients
-            gradient = torch.stack(honest_gradients).mean(dim = 0)
+                # Compute the gradient
+                gradients = honest_gradients + poisonned_gradients
+                gradient = torch.stack(honest_gradients).mean(dim = 0)
 
-            # Evaluate honest gradients scatterings
-            honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients, gradient)
+                # Evaluate honest gradients scatterings
+                honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients, gradient)
 
-            # Evaluate byzantine gradients scatterings
-        
-            poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients, gradient)
+                # Evaluate byzantine gradients scatterings
+            
+                poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients, gradient)
 
-            # Save features norm mean
-            feature_mean[training_step] = mean_feature.max()
-            gradient_variance[training_step] = gradient_variances.max()
+            if compute_gradient_variance:
+                gradient_variance[training_step] = gradient_variances.max()
+
+            if make_feature_measures:
+                # Save features norm mean
+                feature_mean[training_step] = mean_feature.max()
             
             # Combine Honest and poisonned Weights
             weights = honest_weights + poisonned_weights
@@ -426,6 +429,15 @@ def start_training(params):
                 training_seed=training_seed,
                 data_dist_seed=dd_seed,
                 client_id=client_id
+            )
+        
+        for client_id, client in enumerate(poisonned_clients):
+            
+            file_manager.save_feature_variance(
+                feature_variance=feature_variance[client_id + nb_honest_clients],
+                training_seed=training_seed,
+                data_dist_seed=dd_seed,
+                client_id=client_id + nb_honest_clients
             )
     
     if store_models:

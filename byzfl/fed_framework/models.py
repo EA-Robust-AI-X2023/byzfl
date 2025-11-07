@@ -105,73 +105,10 @@ class fc_mnist(nn.Module):
         x = F.relu(self._f1(x.view(-1, 28 * 28)))
         x = F.log_softmax(self._f2(x), dim=1)
         return x
-
-
-class cnn_mnist(nn.Module):
-    """
-    Convolutional Neural Network for MNIST.
-
-    Description:
-    ------------
-    A simple convolutional neural network designed for the MNIST dataset. It 
-    consists of two convolutional layers, ReLU activation, max pooling, and 
-    fully connected layers.
-
-    Examples:
-    ---------
-    >>> model = cnn_mnist()
-    >>> x = torch.randn(16, 1, 28, 28)  # Batch of 16 grayscale MNIST images
-    >>> output = model(x)
-    >>> print(output.shape)
-    torch.Size([16, 10])
-    """
-    def __init__(self):
-        """Initialize the model parameters."""
-        super().__init__()
-        self._c1 = nn.Conv2d(1, 20, 5, 1)
-        self._c2 = nn.Conv2d(20, 50, 5, 1)
-        self._f1 = nn.Linear(800, 500)
-        self._f2 = nn.Linear(500, 10)
-
-    def forward(self, x):
-        """Perform a forward pass through the model."""
-        x = F.relu(self._c1(x))
-        x = F.max_pool2d(x, 2, 2)
-        x = F.relu(self._c2(x))
-        x = F.max_pool2d(x, 2, 2)
-        x = F.relu(self._f1(x.view(-1, 800)))
-        x = F.log_softmax(self._f2(x), dim=1)
-        return x
-
-
-class logreg_mnist(nn.Module):
-    """
-    Logistic Regression Model for MNIST.
-
-    Description:
-    ------------
-    A simple logistic regression model for the MNIST dataset. It consists of 
-    a single linear layer.
-
-    Examples:
-    ---------
-    >>> model = logreg_mnist()
-    >>> x = torch.randn(16, 28*28)  # Batch of 16 MNIST images
-    >>> output = model(x)
-    >>> print(output.shape)
-    torch.Size([16, 10])
-    """
-    def __init__(self):
-        """Initialize the model parameters."""
-        super().__init__()
-        self._linear = nn.Linear(784, 10)
-
-    def forward(self, x):
-        """Perform a forward pass through the model."""
-        return torch.sigmoid(self._linear(x.view(-1, 784)))
     
 
-class softmax_mnist_peng(nn.Module):
+# ------------------------------ Peng & al. models ------------------------------ #
+class softmax_mnist(nn.Module):
     """
     Softmax Regression Model for MNIST, from Peng et al paper "mean is more robust"
 
@@ -234,7 +171,7 @@ class mlp_mnist_peng(nn.Module):
         return x
    
     
-class cnn_mnist_peng(nn.Module):
+class cnn_mnist(nn.Module):
     """
     Peng & al. "mean is more robust..." CNN Model for MNIST.
 
@@ -269,46 +206,7 @@ class cnn_mnist_peng(nn.Module):
         x = F.log_softmax(self.fc2(x), dim=1)
         return x
     
-# ---------------------------------------------------------------------------- #
-
-class cnn_cifar(nn.Module):
-    """
-    Convolutional Neural Network for CIFAR.
-
-    Description:
-    ------------
-    A convolutional neural network designed for the CIFAR-10 and CIFAR-100 
-    datasets. It consists of three convolutional layers, max pooling, and 
-    fully connected layers.
-
-    Examples:
-    ---------
-    >>> model = cnn_cifar()
-    >>> x = torch.randn(16, 3, 32, 32)  # Batch of 16 CIFAR images
-    >>> output = model(x)
-    >>> print(output.shape)
-    torch.Size([16, 10])
-    """
-    def __init__(self):
-        """Initialize the model parameters."""
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 20, 5, padding=2)
-        self.conv2 = nn.Conv2d(self.conv1.out_channels, 100, 5, padding=2)
-        self.conv3 = nn.Conv2d(self.conv2.out_channels, 200, 5, padding=2)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.fc1 = nn.Linear(self.conv3.out_channels * 4 * 4, 512)
-        self.fc2 = nn.Linear(self.fc1.out_features, 256)
-        self.fc3 = nn.Linear(self.fc2.out_features, 10)
-
-    def forward(self, x):
-        """Perform a forward pass through the model."""
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = self.pool(F.relu(self.conv3(x)))
-        x = torch.flatten(x, 1)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
+# ------------------------------------------------------------------ #
 
 
 class BasicBlock(nn.Module):
