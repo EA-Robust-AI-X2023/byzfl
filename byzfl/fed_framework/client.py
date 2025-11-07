@@ -108,7 +108,7 @@ class Client(ModelBaseInterface):
             train_loss_value = self._backward_pass(inputs, targets, train_acc=self.store_per_client_metrics, return_variance = False)
             return train_loss_value, None, None, None
 
-    def compute_gradients_and_update(self, make_feature_measures = True, compute_gradients_variance = True):
+    def compute_gradients_and_update(self, make_feature_measures = True, compute_variance = True):
         """
         Description
         -----------
@@ -119,7 +119,7 @@ class Client(ModelBaseInterface):
         the training loss and accuracy for the batch are computed and recorded.
         This function returns also the mean and the variance of the features over the given batch.
         """
-        train_loss, mean_norm, feature_variance, gradient_variance = self.compute_gradients(make_feature_measures, compute_variance = compute_gradients_variance)
+        train_loss, mean_norm, feature_variance, gradient_variance = self.compute_gradients(make_feature_measures, compute_variance = compute_variance)
         self.optimizer.step()
         
         return train_loss, mean_norm, feature_variance, gradient_variance

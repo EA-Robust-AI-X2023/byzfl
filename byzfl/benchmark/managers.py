@@ -359,13 +359,22 @@ class ParamsManager(object):
         return self._parameter_to_use(default, read)
     
     def get_make_feature_measures(self):
-        pass
+        default = False
+        path = ["evaluation_and_results", "make_feature_measures"]
+        read = self._read_object(path)
+        return self._parameter_to_use(default, read)
 
     def get_compute_gradient_variance(self):
-        pass
+        default = False
+        path = ["evaluation_and_results", "compute_gradient_variance"]
+        read = self._read_object(path)
+        return self._parameter_to_use(default, read)
 
     def get_compute_gradient_scatterings(self):
-        pass
+        default = False
+        path = ["evaluation_and_results", "compute_gradient_scatterings"]
+        read = self._read_object(path)
+        return self._parameter_to_use(default, read)
 
     # ----------------------------------------------------------------------
     #  Model
