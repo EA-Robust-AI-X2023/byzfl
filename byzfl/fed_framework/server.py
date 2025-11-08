@@ -80,6 +80,27 @@ class Server(ModelBaseInterface):
         aggregate_weights = self.aggregate(weights)
         self.set_parameters(aggregate_weights)
 
+    def update_model_with_models(self, models):
+        """
+        Description
+        -----------
+        Updates the global model by aggregating the provided models (adapted to Lfighter aggregator)
+
+        Parameters
+        ----------
+        models : list
+            A list of models to aggregate and apply to the global model.
+        """
+        aggregate_weights = self.aggregate(models)
+        # Some aggregators (e.g. Lfighter) return a state_dict (mapping of tensors),
+        # while others return a flat vector. Handle both cases.
+        if isinstance(aggregate_weights, dict):
+            # aggregator returned a state_dict-like object
+            self.set_model_state(aggregate_weights)
+        else:
+            # aggregator returned a flat vector/list/ndarray/tensor
+            self.set_parameters(aggregate_weights)
+
     def _step(self):
         """
         Description
