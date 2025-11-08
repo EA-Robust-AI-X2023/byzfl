@@ -334,10 +334,10 @@ def start_training(params):
 
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
-                _, 
+                (_, 
                 _, 
                 feature_variance[i + nb_honest_clients][training_step], 
-                gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, 
+                gradient_variances[i + nb_honest_clients]) = poisonned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, 
                                                                                                         compute_variance=compute_gradient_variance)
                 poisonned_weights.append(poisonned_client.get_flat_parameters())
 
