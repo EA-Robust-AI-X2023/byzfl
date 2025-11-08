@@ -13,7 +13,7 @@ class DataDistributor:
             Name of the data distribution strategy (`"iid"`, `"gamma_similarity_niid"`, etc.).
         - `"distribution_parameter"` : float  
             Parameter for the data distribution strategy (e.g., gamma or alpha).
-        - `"nb_honest"` : int  
+        - `"nb_workers"` : int  
             Number of honest clients to split the dataset among.
         - `"data_loader"` : DataLoader  
             The data loader of the dataset to be distributed.
@@ -36,7 +36,7 @@ class DataDistributor:
     >>> params = {
     >>>     "data_distribution_name": "dirichlet_niid",
     >>>     "distribution_parameter": 0.5,
-    >>>     "nb_honest": 5,
+    >>>     "nb_workers": 5,
     >>>     "data_loader": data_loader,
     >>>     "batch_size": 64,
     >>> }
@@ -161,7 +161,7 @@ class DataDistributor:
         if len(idx) == 0:
             return list([[]] * self.nb_workers)
         sorted_idx = np.array(sorted(zip(targets[idx], idx)))[:, 1]
-        return np.array_split(sorted_idx, self.nb_honest)
+        return np.array_split(sorted_idx, self.nb_workers)
     
     def extreme_niid_modified_idx(self, targets, idx):
         """
@@ -181,9 +181,9 @@ class DataDistributor:
             A list of arrays where each array contains indices for one client.
         """
         if len(idx) == 0:
-            return list([[]] * self.nb_honest)
+            return list([[]] * self.nb_workers)
         # sorted_idx = np.array(sorted(zip(targets[idx], idx)))[:, 1]
-        # return np.array_split(sorted_idx, self.nb_honest)
+        # return np.array_split(sorted_idx, self.nb_workers)
         
       
         classes=torch.unique(targets)
@@ -193,14 +193,14 @@ class DataDistributor:
         
         aux_idx = [np.where(targets[idx] == k)[0] for k in classes] #stores indices corresponding to each class
 
-        if c>= self.nb_honest: #more classes than clients: some clients have multiple classes.
-            partition = [np.array([], dtype=int) for _ in range(self.nb_honest)]
+        if c>= self.nb_workers: #more classes than clients: some clients have multiple classes.
+            partition = [np.array([], dtype=int) for _ in range(self.nb_workers)]
             for idx_target in class_idx_dict.values():
-                node_idx = idx_target % self.nb_honest
+                node_idx = idx_target % self.nb_workers
                 partition[node_idx]=np.append(partition[node_idx],aux_idx[idx_target])
             return partition
         
-        elif c<self.nb_honest:
+        elif c<self.nb_workers:
             raise ValueError("there must be at least as much classes as honest nodes for a dirichlet distribution.")
             
     
@@ -243,7 +243,7 @@ class DataDistributor:
             A list of arrays where each array contains indices for one client.
         """
         c = len(torch.unique(targets))
-        sample = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_honest), size=c) #here, we have a (c, nb_honest) matrix, whith each each row summing to 1. This clearly does not garantee that each node has data.(it should e the rows)
+        sample = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_workers), size=c) #here, we have a (c, nb_workers) matrix, whith each each row summing to 1. This clearly does not garantee that each node has data.(it should e the rows)
         p = np.cumsum(sample, axis=1)[:, :-1]
         aux_idx = [np.where(targets[idx] == k)[0] for k in range(c)]
         aux_idx = [np.split(aux_idx[k], (p[k] * len(aux_idx[k])).astype(int)) for k in range(c)]
@@ -278,17 +278,17 @@ class DataDistributor:
         idx_classes = [np.where(targets[idx] == k)[0] for k in range(c)]
 
         
-        partition = [[] for _ in range(self.nb_honest)]
+        partition = [[] for _ in range(self.nb_workers)]
         while current_min_size < min_size:
-            partition = [[] for _ in range(self.nb_honest)]
+            partition = [[] for _ in range(self.nb_workers)]
             for k in range(c):
                 idx_k = idx_classes[k]
                 random.shuffle(idx_k)
                 
-                proportions = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_honest))
+                proportions = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_workers))
                 # using the proportions from dirichlet, only select those nodes having data amount less than average
                 proportions = np.array(
-                    [p * (len(idx_j) < data_size / self.nb_honest) for p, idx_j in zip(proportions, partition)])
+                    [p * (len(idx_j) < data_size / self.nb_workers) for p, idx_j in zip(proportions, partition)])
                 # scale proportions
                 proportions = proportions / proportions.sum()
                 proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
@@ -323,17 +323,17 @@ class DataDistributor:
         idx_classes = [np.where(targets[idx] == k)[0] for k in range(c)]
 
         
-        partition = [[] for _ in range(self.nb_honest)]
+        partition = [[] for _ in range(self.nb_workers)]
         while current_min_size < min_size:
-            partition = [[] for _ in range(self.nb_honest)]
+            partition = [[] for _ in range(self.nb_workers)]
             for k in range(c):
                 idx_k = idx_classes[k]
                 random.shuffle(idx_k)
                 
-                proportions = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_honest))
+                proportions = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_workers))
                 # using the proportions from dirichlet, only select those nodes having data amount less than average
                 proportions = np.array(
-                    [p * (len(idx_j) < data_size / self.nb_honest) for p, idx_j in zip(proportions, partition)])
+                    [p * (len(idx_j) < data_size / self.nb_workers) for p, idx_j in zip(proportions, partition)])
                 # scale proportions
                 proportions = proportions / proportions.sum()
                 proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
