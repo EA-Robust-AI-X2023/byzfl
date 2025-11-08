@@ -197,6 +197,7 @@ def start_training(params):
     make_feature_measures = params_manager.get_make_feature_measures()
     compute_gradient_variance = params_manager.get_compute_gradient_variance()
     compute_gradient_scatterings = params_manager.get_compute_gradient_scatterings()
+    scatter_momentums = params_manager.get_scatter_momentums()
 
     store_models = params_manager.get_store_models()
     store_per_client_metrics = params_manager.get_store_per_client_metrics()
@@ -279,13 +280,13 @@ def start_training(params):
             
             # Aggregate Honest Gradients
             honest_gradients = [client.get_flat_gradients_with_momentum() for client in honest_clients]
-
+            
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
                 _, _, feature_variance[i + nb_honest_clients][training_step], gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients()
 
             poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
-
+            
             # Combine Honest and poisonned Gradients
             gradients = honest_gradients + poisonned_gradients
 
@@ -294,11 +295,20 @@ def start_training(params):
             gradient = torch.stack(honest_gradients).mean(dim = 0)
 
             if compute_gradient_scatterings:
+                #we are interested in the scatterings of honest and byzantine gradients whithout the momentum term
+                
+                honest_gradients_for_scattering = honest_gradients
+                poisonned_gradients_for_scattering = poisonned_gradients
+                
+                if scatter_momentums: #default is false
+                    honest_gradients_for_scattering = [client.get_flat_gradients() for client in honest_clients]
+                    poisonned_gradients_for_scattering = [client.get_flat_gradients() for client in poisonned_clients]
+                
                 # Evaluate honest gradients scatterings
-                honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients, gradient)
+                honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients_for_scattering, gradient)
 
                 # Evaluate poisonned gradients scatterings
-                poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients, gradient)
+                poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients_for_scattering, gradient)
 
             if make_feature_measures:
                 # Save features norm mean
@@ -331,6 +341,8 @@ def start_training(params):
             # Aggregate Honest Gradients
             honest_gradients = [client.get_flat_gradients_with_momentum() for client in honest_clients]
             poisonned_weights = []
+            
+            
 
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
@@ -340,20 +352,29 @@ def start_training(params):
                 gradient_variances[i + nb_honest_clients]) = poisonned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, 
                                                                                                         compute_variance=compute_gradient_variance)
                 poisonned_weights.append(poisonned_client.get_flat_parameters())
+                
+            poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
 
             if compute_gradient_scatterings:
-                poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
-
+                
+                #honest and byzantine gradients for scattering computations
+                honest_gradients_for_scattering = honest_gradients
+                poisonned_gradients_for_scattering = poisonned_gradients
+                
+                if scatter_momentums: #default is false
+                    honest_gradients_for_scattering = [client.get_flat_gradients() for client in honest_clients]
+                    poisonned_gradients_for_scattering = [client.get_flat_gradients() for client in poisonned_clients]
+                    
                 # Compute the gradient
                 gradients = honest_gradients + poisonned_gradients
                 gradient = torch.stack(honest_gradients).mean(dim = 0)
 
                 # Evaluate honest gradients scatterings
-                honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients, gradient)
+                honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients_for_scattering, gradient)
 
                 # Evaluate byzantine gradients scatterings
             
-                poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients, gradient)
+                poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients_for_scattering, gradient)
 
             if compute_gradient_variance:
                 gradient_variance[training_step] = gradient_variances.max()

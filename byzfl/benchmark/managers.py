@@ -375,6 +375,14 @@ class ParamsManager(object):
         path = ["evaluation_and_results", "compute_gradient_scatterings"]
         read = self._read_object(path)
         return self._parameter_to_use(default, read)
+    
+    def get_scatter_momentums(self):
+        #allows to compute scatterings on momentum buffers rather than raw gradients
+        default = False
+        path = ["evaluation_and_results", "scatter_momentums"]
+        read = self._read_object(path)
+        return self._parameter_to_use(default, read)
+    
 
     # ----------------------------------------------------------------------
     #  Model
