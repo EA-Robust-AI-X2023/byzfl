@@ -677,7 +677,7 @@ class Lfighter(object):
         return ds0, ds1
     
     # Get average weights
-    def average_weights(w, marks):
+    def average_weights(self,w, marks):
         """
         Returns the average of the weights.
         """
@@ -730,7 +730,7 @@ class Lfighter(object):
             if l != good_cl:
                 scores[i] = 0
             
-        global_weights = self.verage_weights(local_weights, scores)
+        global_weights = self.average_weights(local_weights, scores)
         return global_weights
     
 
