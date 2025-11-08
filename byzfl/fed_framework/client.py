@@ -110,11 +110,7 @@ class Client(ModelBaseInterface):
             return train_loss_value, mean_norm, feature_variance, gradient_variance
         
         else : 
-            train_loss_value, _ = self._backward_pass(inputs, targets, train_acc=self.store_per_client_metrics, compute_variance = False)
-            
-            if self.store_per_client_metrics:
-                self.loss_list.append(train_loss_value)
-            
+            train_loss_value = self._backward_pass(inputs, targets, train_acc=self.store_per_client_metrics, compute_variance = False)
             return train_loss_value, None, None, None
 
     def compute_gradients_and_update(self, make_feature_measures = True, compute_variance = True):

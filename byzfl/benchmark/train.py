@@ -330,11 +330,8 @@ def start_training(params):
                 train_loss_per_client[i], 
                 mean_feature[i], 
                 feature_variance[i][training_step], 
-                gradient_variances[i]) = client.compute_gradients_and_update(make_feature_measures=make_feature_measures,
-                                                                             compute_variance=compute_gradient_variance)
-                honest_weights.append(honest_clients[i].get_flat_parameters())
-                                                                             compute_gradients_variance=compute_gradient_variance)
-            
+                gradient_variances[i]) = client.compute_gradients_and_update(make_feature_measures=make_feature_measures,compute_variance=compute_gradient_variance)
+                            
             train_loss_list[training_step] = train_loss_per_client.mean()
             
             # Aggregate Honest Gradients
@@ -345,13 +342,9 @@ def start_training(params):
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
                 (_, 
-                (_, 
-                _, 
+                _,
                 feature_variance[i + nb_honest_clients][training_step], 
-                gradient_variances[i + nb_honest_clients]) = poisonned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, 
-                                                                                                        compute_variance=compute_gradient_variance)
-                poisonned_weights.append(poisonned_client.get_flat_parameters())
-                
+                gradient_variances[i + nb_honest_clients]) = poisonned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, compute_variance=compute_gradient_variance)                
             poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
 
             if compute_gradient_scatterings:
