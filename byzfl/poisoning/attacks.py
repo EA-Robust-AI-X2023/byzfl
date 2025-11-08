@@ -76,9 +76,19 @@ class DynamicLabelFlipping(object):
         The inputs and targets with flipped labels.
     """
     
-    def __call__(self, model, inputs, targets):
-        flipped_targets = model(inputs).argmin(dim=1).cpu().numpy()
+    def __init__(self, print_flips=False):
+        self.print_flips = print_flips
     
+    def __call__(self, model, inputs, targets):
+        flipped_targets = model(inputs).argmin(dim=1)
+
+        if self.print_flips:
+            print(f"Flipping targets:")
+            for i, (original, flipped) in enumerate(zip(targets, flipped_targets)):
+                if original != flipped:
+                    print(f"{original} -> {flipped} /")
+            print("\n")
+
         return inputs, flipped_targets
     
 
