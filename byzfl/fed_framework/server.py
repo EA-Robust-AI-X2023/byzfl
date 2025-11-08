@@ -80,6 +80,20 @@ class Server(ModelBaseInterface):
         aggregate_weights = self.aggregate(weights)
         self.set_parameters(aggregate_weights)
 
+    def update_model_with_models(self, models):
+        """
+        Description
+        -----------
+        Updates the global model by aggregating the provided models (adapted to Lfighter aggregator)
+
+        Parameters
+        ----------
+        models : list
+            A list of models to aggregate and apply to the global model.
+        """
+        aggregate_weights = self.aggregate(models)
+        self.set_parameters(aggregate_weights)
+
     def _step(self):
         """
         Description

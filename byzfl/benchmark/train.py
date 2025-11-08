@@ -308,38 +308,34 @@ def start_training(params):
                 gradient_variance[training_step] = gradient_variances.max()
 
 
-        elif training_algorithm_name == "FedAvg" or params_manager.get_aggregator_name() == "Lfighter":
+        elif params_manager.get_aggregator_name() == "Lfighter":
 
             train_loss_per_client = np.zeros((nb_honest_clients))
             mean_feature = np.zeros((nb_honest_clients))
             gradient_variances = np.zeros((nb_honest_clients + nb_byz_clients))
-            honest_weights = []
 
 
             # Honest Clients Compute Gradients
             for i, client in enumerate(honest_clients):
                 (
-                    train_loss_per_client[i], 
+                train_loss_per_client[i], 
                 mean_feature[i], 
                 feature_variance[i][training_step], 
                 gradient_variances[i]) = client.compute_gradients_and_update(make_feature_measures=make_feature_measures,
                                                                              compute_gradients_variance=compute_gradient_variance)
-                honest_weights.append(honest_clients[i].get_flat_parameters())
             
             train_loss_list[training_step] = train_loss_per_client.mean()
             
             # Aggregate Honest Gradients
             honest_gradients = [client.get_flat_gradients_with_momentum() for client in honest_clients]
-            poisonned_weights = []
 
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
-                _, 
+                (_, 
                 _, 
                 feature_variance[i + nb_honest_clients][training_step], 
-                gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, 
+                gradient_variances[i + nb_honest_clients]) = poisonned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, 
                                                                                                         compute_gradients_variance=compute_gradient_variance)
-                poisonned_weights.append(poisonned_client.get_flat_parameters())
 
             if compute_gradient_scatterings:
                 poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
@@ -362,9 +358,9 @@ def start_training(params):
                 # Save features norm mean
                 feature_mean[training_step] = mean_feature.max()
             
-            # Combine Honest and poisonned Weights
-            weights = honest_weights + poisonned_weights
-            server.update_model_with_weights(weights)
+            # Combine Honest and poisonned models
+            clients = honest_clients + poisonned_clients
+            server.update_model_with_models([client.model for client in clients])
 
         else:
             raise ValueError(f"Training algorithm {training_algorithm_name} not supported")

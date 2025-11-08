@@ -690,60 +690,25 @@ class Lfighter(object):
             w_avg[key] = w_avg[key] *(1/sum(marks))
         return w_avg
 
-    # Adapt to gradients ...
-    def __call__(self, global_model, local_models):
+    def __call__(self, local_models):
 
         local_weights = [copy.deepcopy(model).state_dict() for model in local_models]
         m = len(local_models)
         for i in range(m):
             local_models[i] = list(local_models[i].parameters())
-        global_model = list(global_model.parameters())
         dw = [None for _ in range(m)]
         db = [None for _ in range(m)]
         for i in range(m):
-            dw[i]= global_model[-2].cpu().data.numpy() - \
-                local_models[i][-2].cpu().data.numpy() 
-            db[i]= global_model[-1].cpu().data.numpy() - \
-                local_models[i][-1].cpu().data.numpy()
+            dw[i]= - local_models[i][-2].cpu().data.numpy() 
+            db[i]= - local_models[i][-1].cpu().data.numpy()
         dw = np.asarray(dw)
         db = np.asarray(db)
 
-        "If one class or two classes classification model"
-        if len(db[0]) <= 2:
-            data = []
-            for i in range(m):
-                data.append(dw[i].reshape(-1))
-        
-            kmeans = KMeans(n_clusters=2, random_state=0).fit(data)
-            labels = kmeans.labels_
-
-            clusters = {0:[], 1:[]}
-            for i, l in enumerate(labels):
-                clusters[l].append(data[i])
-
-            good_cl = 0
-            cs0, cs1 = self.clusters_dissimilarity(clusters)
-            if cs0 < cs1:
-                good_cl = 1
-
-            # print('Cluster 0 weighted variance', cs0)
-            # print('Cluster 1 weighted variance', cs1)
-            # print('Potential good cluster is:', good_cl)
-            scores = np.ones([m])
-            for i, l in enumerate(labels):
-                # print(ptypes[i], 'Cluster:', l)
-                if l != good_cl:
-                    scores[i] = 0
-                
-            global_weights = self.average_weights(local_weights, scores)
-            return global_weights
-
-        "For multiclassification models"
+        "All models we consider are multiclassification models"
         norms = np.linalg.norm(dw, axis = -1) 
         self.memory = np.sum(norms, axis = 0)
         self.memory +=np.sum(abs(db), axis = 0)
         max_two_freq_classes = self.memory.argsort()[-2:]
-        print('Potential source and target classes:', max_two_freq_classes)
         data = []
         for i in range(m):
             data.append(dw[i][max_two_freq_classes].reshape(-1))
@@ -759,13 +724,9 @@ class Lfighter(object):
         cs0, cs1 = self.clusters_dissimilarity(clusters)
         if cs0 < cs1:
             good_cl = 1
-
-        # print('Cluster 0 weighted variance', cs0)
-        # print('Cluster 1 weighted variance', cs1)
-        # print('Potential good cluster is:', good_cl)
         scores = np.ones([m])
+
         for i, l in enumerate(labels):
-            # print(ptypes[i], 'Cluster:', l)
             if l != good_cl:
                 scores[i] = 0
             
