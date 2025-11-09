@@ -1261,6 +1261,9 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
 
     # <-------------- Attacks Config ------------->
     attacks = data["attack"]
+    
+    # <-------------- Gradient type ------------->
+    scatter_momentums = data["evaluation_and_results"].get("scatter_momentums", False)
 
     # Ensure certain configurations are always lists
     nb_honest_clients = ensure_list(nb_honest_clients)
@@ -1379,6 +1382,7 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
 
                                     
                                     attack = attack["name"]
+                                    gradient_type = "Momentum" if scatter_momentums else "Raw"
                                     plt.plot(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_ksi, axis = 0), label = r"$ksi$", color = colors[0], linestyle = tab_sign[0], marker = None, markevery = 1)
                                     plt.plot(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_A, axis = 0), label = r"$A$", color = colors[1], linestyle = tab_sign[1], marker = None, markevery = 1)
                                     plt.fill_between(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_ksi, axis = 0) - err_ksi, np.mean(tab_scat_ksi, axis = 0) + err_ksi, alpha = 0.25)
@@ -1387,7 +1391,7 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
                                     plt.xlim(0,(nb_scatterings-1)*evaluation_delta)
                                     plt.xlabel('Round')
                                     plt.ylabel("Gradient heterogeneity")
-                                    plt.title(f"Gradient scatterings, {data_dist["name"]}-{str(dist_parameter)} distribution")
+                                    plt.title(f"{gradient_type} gradient scatterings, {data_dist["name"]}-{str(dist_parameter)} distribution")
                                     plt.grid()
                                     plt.legend()
 
