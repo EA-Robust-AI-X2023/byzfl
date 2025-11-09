@@ -565,6 +565,7 @@ def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, t
                                         ax.plot(np.arange(nb_accuracies)*evaluation_delta, np.mean(tab_acc[i], axis = 0), label = agg["name"], color = colors[i_agg+i], linestyle = tab_sign[i_agg+i], marker = markers[i_agg+i], markevery = 1)
                                         ax.fill_between(np.arange(nb_accuracies)*evaluation_delta, np.mean(tab_acc[i], axis = 0) - err[i], np.mean(tab_acc[i], axis = 0) + err[i], alpha = 0.25)
                                         ax.set_title(f"Accuracy path for {attack} attack, distribution: {data_dist["name"]}_{str(dist_parameter)}")
+                                        ax.set_xlim(0,(nb_accuracies-1)*evaluation_delta)
 
                                 plt.xlabel('Round')
                                 plt.ylabel('Accuracy')
@@ -1277,7 +1278,7 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
     momentum_list = ensure_list(momentum_list)
     wd_list = ensure_list(wd_list)
 
-    nb_scatterings = nb_steps
+    nb_scatterings = nb_steps//evaluation_delta
 
     for nb_honest in nb_honest_clients:
         for nb_byzantine in nb_byz:
@@ -1378,11 +1379,12 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
 
                                     
                                     attack = attack["name"]
-                                    plt.plot(np.arange(nb_scatterings), np.mean(tab_scat_ksi, axis = 0), label = r"$ksi$", color = colors[0], linestyle = tab_sign[0], marker = None, markevery = 1)
-                                    plt.plot(np.arange(nb_scatterings), np.mean(tab_scat_A, axis = 0), label = r"$A$", color = colors[1], linestyle = tab_sign[1], marker = None, markevery = 1)
-                                    plt.fill_between(np.arange(nb_scatterings), np.mean(tab_scat_ksi, axis = 0) - err_ksi, np.mean(tab_scat_ksi, axis = 0) + err_ksi, alpha = 0.25)
-                                    plt.fill_between(np.arange(nb_scatterings), np.mean(tab_scat_A, axis = 0) - err_A, np.mean(tab_scat_A, axis = 0) + err_A, alpha = 0.25)
+                                    plt.plot(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_ksi, axis = 0), label = r"$ksi$", color = colors[0], linestyle = tab_sign[0], marker = None, markevery = 1)
+                                    plt.plot(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_A, axis = 0), label = r"$A$", color = colors[1], linestyle = tab_sign[1], marker = None, markevery = 1)
+                                    plt.fill_between(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_ksi, axis = 0) - err_ksi, np.mean(tab_scat_ksi, axis = 0) + err_ksi, alpha = 0.25)
+                                    plt.fill_between(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_A, axis = 0) - err_A, np.mean(tab_scat_A, axis = 0) + err_A, alpha = 0.25)
 
+                                    plt.xlim(0,(nb_scatterings-1)*evaluation_delta)
                                     plt.xlabel('Round')
                                     plt.ylabel("Gradient heterogeneity")
                                     plt.title(f"Gradient scatterings, {data_dist["name"]}-{str(dist_parameter)} distribution")

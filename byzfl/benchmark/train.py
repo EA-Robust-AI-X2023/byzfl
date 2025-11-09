@@ -206,11 +206,11 @@ def start_training(params):
     test_accuracy_list = np.array([])
     train_loss_list = np.zeros((nb_training_steps))
 
-    honest_scattering_list = np.zeros((nb_training_steps))
-    poisonned_scattering_list = np.zeros((nb_training_steps))
-    feature_mean = np.zeros((nb_training_steps))
-    feature_variance = {i:np.zeros((nb_training_steps)) for i in range(nb_honest_clients + nb_byz_clients)}
-    gradient_variance = np.zeros((nb_training_steps))
+    honest_scattering_list = np.array([])
+    poisonned_scattering_list = np.array([])
+    feature_mean = np.array([])
+    feature_variance_dict = {i:np.zeros((nb_training_steps//evaluation_delta +1)) for i in range(nb_honest_clients + nb_byz_clients)}
+    gradient_variance = np.array([])
 
     start_time = time.time()
 
@@ -226,6 +226,11 @@ def start_training(params):
 
     # Training Loop
     for training_step in range(nb_training_steps):
+        
+        #default, no special measures
+        compute_gradient_variance_step= False
+        compute_gradient_scatterings_step= False
+        make_feature_measures_step= False
 
         # Evaluate Global Model Every Evaluation Delta Steps
         if training_step % evaluation_delta == 0:
@@ -259,21 +264,29 @@ def start_training(params):
                     dd_seed,
                     training_step
                 )
+                
+            if compute_gradient_variance:
+                compute_gradient_variance_step=True
+            if compute_gradient_scatterings:
+                compute_gradient_scatterings_step=True
+            if make_feature_measures:
+                make_feature_measures_step=True
         
         if training_algorithm_name == "DSGD" and params_manager.get_aggregator_name() != "Lfighter":
 
-            train_loss_per_client = np.zeros((nb_honest_clients))
-            mean_feature = np.zeros((nb_honest_clients))
+            train_loss_per_client = np.zeros((nb_honest_clients+ nb_byz_clients))
+            mean_feature = np.zeros((nb_honest_clients+ nb_byz_clients))
             gradient_variances = np.zeros((nb_honest_clients + nb_byz_clients))
+            feature_variance= np.zeros((nb_honest_clients + nb_byz_clients))
 
 
             # Honest Clients Compute Gradients
             for i, client in enumerate(honest_clients):
                 (train_loss_per_client[i], 
                 mean_feature[i], 
-                feature_variance[i][training_step], 
+                feature_variance[i], 
                 gradient_variances[i]) = client.compute_gradients(make_feature_measures=make_feature_measures, 
-                                                                  compute_variance=compute_gradient_variance)
+                                                                  compute_variance=compute_gradient_variance_step)
             
             train_loss_list[training_step] = train_loss_per_client.mean()
             
@@ -282,7 +295,10 @@ def start_training(params):
             
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
-                _, _, feature_variance[i + nb_honest_clients][training_step], gradient_variances[i + nb_honest_clients] = poisonned_client.compute_gradients()
+                (train_loss_per_client[i + nb_honest_clients], 
+                 mean_feature[i + nb_honest_clients], 
+                 feature_variance[i + nb_honest_clients], 
+                 gradient_variances[i + nb_honest_clients]) = poisonned_client.compute_gradients(make_feature_measures=make_feature_measures, compute_variance=compute_gradient_variance_step)
 
             poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
             
@@ -293,61 +309,66 @@ def start_training(params):
             server.update_model_with_gradients(gradients)
             gradient = torch.stack(honest_gradients).mean(dim = 0)
 
-            if compute_gradient_scatterings:
+            if compute_gradient_scatterings_step:
                 #we are interested in the scatterings of honest and byzantine gradients whithout the momentum term
                 
                 honest_gradients_for_scattering = honest_gradients
                 poisonned_gradients_for_scattering = poisonned_gradients
                 
                 if scatter_momentums: #default is false
-                    honest_gradients_for_scattering = [client.get_flat_gradients() for client in honest_clients]
-                    poisonned_gradients_for_scattering = [client.get_flat_gradients() for client in poisonned_clients]
-                
+                    honest_gradients_for_scattering = [client.get_flat_gradients_with_momentum() for client in honest_clients]
+                    poisonned_gradients_for_scattering = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
+
                 # Evaluate honest gradients scatterings
-                honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients_for_scattering, gradient)
+                max_dist_gradient_honest= max_distance_to_gradient(honest_gradients_for_scattering, gradient)
+                if isinstance(max_dist_gradient_honest, torch.Tensor):
+                    max_dist_gradient_honest = max_dist_gradient_honest.detach().cpu().item()
+                honest_scattering_list=np.append(honest_scattering_list, max_dist_gradient_honest)
 
                 # Evaluate poisonned gradients scatterings
-                poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients_for_scattering, gradient)
+                max_dist_gradient_poisonned= max_distance_to_gradient(poisonned_gradients_for_scattering, gradient)
+                if isinstance(max_dist_gradient_poisonned, torch.Tensor):
+                    max_dist_gradient_poisonned = max_dist_gradient_poisonned.detach().cpu().item()
+                poisonned_scattering_list=np.append(poisonned_scattering_list,max_dist_gradient_poisonned)
 
-            if make_feature_measures:
+            if make_feature_measures_step:
                 # Save features norm mean
-                feature_mean[training_step] = mean_feature.max()
+                feature_mean=np.append(feature_mean, mean_feature.max())
 
-            if compute_gradient_variance:
-                gradient_variance[training_step] = gradient_variances.max()
+            if compute_gradient_variance_step:
+                gradient_variance=np.append(gradient_variance, gradient_variances.max())
 
 
         elif params_manager.get_aggregator_name() == "Lfighter":
 
-            train_loss_per_client = np.zeros((nb_honest_clients))
-            mean_feature = np.zeros((nb_honest_clients))
+            train_loss_per_client = np.zeros((nb_honest_clients+ nb_byz_clients))
+            mean_feature = np.zeros((nb_honest_clients+ nb_byz_clients))
             gradient_variances = np.zeros((nb_honest_clients + nb_byz_clients))
-
+            feature_variance=np.zeros((nb_honest_clients + nb_byz_clients))
 
             # Honest Clients Compute Gradients
             for i, client in enumerate(honest_clients):
                 (
                 train_loss_per_client[i], 
                 mean_feature[i], 
-                feature_variance[i][training_step], 
-                gradient_variances[i]) = client.compute_gradients_and_update(make_feature_measures=make_feature_measures,compute_variance=compute_gradient_variance)
+                feature_variance[i], 
+                gradient_variances[i]) = client.compute_gradients_and_update(make_feature_measures=make_feature_measures,compute_variance=compute_gradient_variance_step)
                             
             train_loss_list[training_step] = train_loss_per_client.mean()
             
             # Aggregate Honest Gradients
             honest_gradients = [client.get_flat_gradients_with_momentum() for client in honest_clients]
             
-            
-
             # Apply poisonning attack
             for i, poisonned_client in enumerate(poisonned_clients):
-                (_, 
-                _,
-                feature_variance[i + nb_honest_clients][training_step], 
-                gradient_variances[i + nb_honest_clients]) = poisonned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, compute_variance=compute_gradient_variance)                
+                (train_loss_per_client[i + nb_honest_clients], 
+                 mean_feature[i + nb_honest_clients],
+                feature_variance[i + nb_honest_clients], 
+                gradient_variances[i + nb_honest_clients]) = poisonned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, compute_variance=compute_gradient_variance_step)                
+            
             poisonned_gradients = [client.get_flat_gradients_with_momentum() for client in poisonned_clients]
 
-            if compute_gradient_scatterings:
+            if compute_gradient_scatterings_step:
                 
                 #honest and byzantine gradients for scattering computations
                 honest_gradients_for_scattering = honest_gradients
@@ -362,19 +383,20 @@ def start_training(params):
                 gradient = torch.stack(honest_gradients).mean(dim = 0)
 
                 # Evaluate honest gradients scatterings
-                honest_scattering_list[training_step] = max_distance_to_gradient(honest_gradients_for_scattering, gradient)
+                honest_scattering_list=np.append(honest_scattering_list,max_distance_to_gradient(honest_gradients_for_scattering, gradient))
 
                 # Evaluate byzantine gradients scatterings
-            
-                poisonned_scattering_list[training_step] =  max_distance_to_gradient(poisonned_gradients_for_scattering, gradient)
+                poisonned_scattering_list=np.append(poisonned_scattering_list,max_distance_to_gradient(poisonned_gradients_for_scattering, gradient))
 
-            if compute_gradient_variance:
-                gradient_variance[training_step] = gradient_variances.max()
+            if compute_gradient_variance_step:
+                gradient_variance=np.append(gradient_variance, gradient_variances.max())
 
-            if make_feature_measures:
+            if make_feature_measures_step:
                 # Save features norm mean
-                feature_mean[training_step] = mean_feature.max()
-            
+                feature_mean=np.append(feature_mean, mean_feature.max())
+                for i in range(nb_honest_clients + nb_byz_clients):
+                    feature_variance_dict[i] = feature_variance[i]
+
             # Combine Honest and poisonned models
             clients = honest_clients + poisonned_clients
             server.update_model_with_models([client.model for client in clients])
@@ -438,7 +460,7 @@ def start_training(params):
             )
 
             file_manager.save_feature_variance(
-                feature_variance=feature_variance[client_id],
+                feature_variance=feature_variance_dict[client_id],
                 training_seed=training_seed,
                 data_dist_seed=dd_seed,
                 client_id=client_id
@@ -447,7 +469,7 @@ def start_training(params):
         for client_id, client in enumerate(poisonned_clients):
             
             file_manager.save_feature_variance(
-                feature_variance=feature_variance[client_id + nb_honest_clients],
+                feature_variance=feature_variance_dict[client_id + nb_honest_clients],
                 training_seed=training_seed,
                 data_dist_seed=dd_seed,
                 client_id=client_id + nb_honest_clients
