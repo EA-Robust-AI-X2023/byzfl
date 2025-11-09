@@ -72,7 +72,7 @@ class Client(ModelBaseInterface):
             self.train_iterator = iter(self.training_dataloader)
             return next(self.train_iterator)
 
-    def compute_gradients(self, make_feature_measures = True, compute_variance = True):
+    def compute_gradients(self, make_feature_measures = False, compute_variance = False):
         """
         Description
         -----------
@@ -113,7 +113,7 @@ class Client(ModelBaseInterface):
             train_loss_value = self._backward_pass(inputs, targets, train_acc=self.store_per_client_metrics, compute_variance = False)
             return train_loss_value, None, None, None
 
-    def compute_gradients_and_update(self, make_feature_measures = True, compute_variance = True):
+    def compute_gradients_and_update(self, make_feature_measures = False, compute_variance = False):
         """
         Description
         -----------
@@ -130,13 +130,15 @@ class Client(ModelBaseInterface):
         return train_loss, mean_norm, feature_variance, gradient_variance
     
     
-    def _backward_pass(self, inputs, targets, train_acc=False, compute_variance = True):
+    def _backward_pass(self, inputs, targets, train_acc=False, compute_variance = False):
         """
         Description
         -----------
         Performs a backward pass through the model to compute gradients for 
         the given inputs and targets. Evaluates the gradient estimator's 
         variance and optionally computes training accuracy for the batch.
+        compute_variance allows to compute the variance of the gradients over the batch. TThis requires 
+        manually storing the mean gradient over the batch in the model gradients afterwards.
 
         Parameters
         ----------
@@ -154,21 +156,51 @@ class Client(ModelBaseInterface):
             The loss value for the current batch.
             The gradient estimator's variance
         """
+        
 
-        # Compute the gradients for each data point
-        individual_gradients = []
-        for input, target in zip(inputs, targets):
+        if compute_variance:
+            
+            grads_per_sample = []
+
+            # Compute the gradients for each data point
+            individual_gradients = []
+            for input, target in zip(inputs, targets):
+                self.model.zero_grad()
+                output = self.model(input.unsqueeze(0))  # Add batch dimension
+                loss = self.criterion(output, target.unsqueeze(0))  # Add batch dimension
+                loss.backward()
+                
+                grad_vector = torch.cat([p.grad.view(-1) for p in self.model.parameters() if p.grad is not None])
+                grads_per_sample.append(grad_vector.detach())
+
+            grads_per_sample = torch.stack(grads_per_sample)  # shape = (batch_size, n_params)
+
+            grad_mean_vector = grads_per_sample.mean(dim=0)
+            
+            gradient_variance = grads_per_sample.var(dim=0, unbiased=False).mean().item()
+
+            #store the mean gradient over the batch in the model gradients
+            idx = 0
+            for p in self.model.parameters():
+                if p.grad is not None:
+                    n = p.numel()
+                    p.grad = grad_mean_vector[idx:idx+n].view_as(p).clone()
+                    idx += n
+                
+
+            outputs = self.model(inputs)
+            loss_value = self.criterion(outputs, targets).item()
+        
+        else: #batch gradient descent 
+            
+            gradient_variance=None
+            
             self.model.zero_grad()
-            output = self.model(input.unsqueeze(0))  # Add batch dimension
-            loss = self.criterion(output, target.unsqueeze(0))  # Add batch dimension
+            outputs = self.model(inputs)
+            loss = self.criterion(outputs, targets)
+            loss_value = loss.item()
+            self.model.zero_grad()
             loss.backward()
-            individual_gradients.append(self.get_flat_gradients())
-
-        outputs = self.model(inputs)
-        loss = self.criterion(outputs, targets)
-        loss_value = loss.item()
-
-        individual_gradients = torch.stack(individual_gradients)
 
         if train_acc:
             # Compute and store train accuracy
@@ -177,15 +209,8 @@ class Client(ModelBaseInterface):
             correct = (predicted == targets).sum().item()
             acc = correct / total
             self.train_acc_list.append(acc)
-
-        if compute_variance:
-            # Compute the variance of the gradients across the batch
-            gradient_variance = individual_gradients.var(dim=0, unbiased=False).mean().item()
-
-            return loss_value, gradient_variance
         
-        else :
-            return loss_value, None
+        return loss_value, gradient_variance
     
     def compute_model_update(self, num_rounds):
         """
