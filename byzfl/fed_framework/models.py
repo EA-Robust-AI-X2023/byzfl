@@ -135,7 +135,6 @@ class softmax_mnist(nn.Module):
         """Perform a forward pass through the model."""
         return torch.softmax(self._linear(x.view(-1, 784)), dim=1)
     
-
 class mlp_mnist_peng(nn.Module):
     """
     Peng & al. "mean is more robust..." MLP Model for MNIST.
@@ -163,26 +162,66 @@ class mlp_mnist_peng(nn.Module):
 
     def forward(self, x):
         """Perform a forward pass through the model."""
+        x=x.view(-1, 28 * 28)
         x = self.hidden1(x)
         x = F.relu(x)
         x = self.hidden2(x)
         x = F.relu(x)
         x = F.log_softmax(self.classification_layer(x), dim=1)
         return x
-   
     
+
 class cnn_mnist(nn.Module):
     """
-    Peng & al. "mean is more robust..." CNN Model for MNIST.
+    Convolutional Neural Network for MNIST.
 
     Description:
     ------------
-    A simple CNN model for the MNIST dataset.
+    A simple convolutional neural network designed for the MNIST dataset. It 
+    consists of two convolutional layers, ReLU activation, max pooling, and 
+    fully connected layers.
+
+    Examples:
+    ---------
+    >>> model = cnn_mnist()
+    >>> x = torch.randn(16, 1, 28, 28)  # Batch of 16 grayscale MNIST images
+    >>> output = model(x)
+    >>> print(output.shape)
+    torch.Size([16, 10])
+    """
+    def __init__(self):
+        """Initialize the model parameters."""
+        super().__init__()
+        self._c1 = nn.Conv2d(1, 20, 5, 1)
+        self._c2 = nn.Conv2d(20, 50, 5, 1)
+        self._f1 = nn.Linear(800, 500)
+        self._f2 = nn.Linear(500, 10)
+
+    def forward(self, x):
+        """Perform a forward pass through the model."""
+        x=x.view(-1, 28 * 28)
+        x = F.relu(self._c1(x))
+        x = F.max_pool2d(x, 2, 2)
+        x = F.relu(self._c2(x))
+        x = F.max_pool2d(x, 2, 2)
+        x = F.relu(self._f1(x.view(-1, 800)))
+        x = F.log_softmax(self._f2(x), dim=1)
+        return x
+
+   
+    
+class cnn_cifar10_peng(nn.Module):
+    """
+    Peng & al. "mean is more robust..." CNN Model for CIFAR10.
+
+    Description:
+    ------------
+    A simple CNN model for the CIFAR10 dataset.
 
     Examples:
     ---------
     >>> model = CNN_mnist()
-    >>> x = x = torch.randn(16, 1, 28, 28)  # Batch of 16 MNIST images
+    >>> x = x = torch.randn(16, 3, 32, 32)  # Batch of 16 CIFAR10 images
     >>> output = model(x)
     >>> print(output.shape)
     torch.Size([16, 10])
