@@ -385,10 +385,13 @@ def start_training(params):
                 gradient = torch.stack(honest_gradients).mean(dim = 0)
 
                 # Evaluate honest gradients scatterings
-                honest_scattering_list=np.append(honest_scattering_list,max_distance_to_gradient(honest_gradients_for_scattering, gradient))
+                max_dist_gradient_honest_cpu=max_distance_to_gradient(honest_gradients_for_scattering, gradient).cpu().item()
+                
+                honest_scattering_list=np.append(honest_scattering_list,max_dist_gradient_honest_cpu)
 
                 # Evaluate byzantine gradients scatterings
-                poisonned_scattering_list=np.append(poisonned_scattering_list,max_distance_to_gradient(poisonned_gradients_for_scattering, gradient))
+                max_dist_gradient_poisonned_cpu=max_distance_to_gradient(poisonned_gradients_for_scattering, gradient).cpu().item()
+                poisonned_scattering_list=np.append(poisonned_scattering_list,max_dist_gradient_poisonned_cpu)
 
             if compute_gradient_variance_step:
                 gradient_variance=np.append(gradient_variance, gradient_variances.max())
