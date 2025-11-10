@@ -331,6 +331,12 @@ class ParamsManager(object):
         read = self._read_object(path)
         return self._parameter_to_use(default, read)
     
+    def get_min_size_data_distribution(self):
+        default = 4000
+        path = ["benchmark_config", "data_distribution", "min_size"]
+        read = self._read_object(path)
+        return self._parameter_to_use(default, read)
+    
     def get_training_algorithm(self):
         default = {
             "name": "DSGD",

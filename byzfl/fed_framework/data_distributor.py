@@ -57,6 +57,7 @@ class DataDistributor:
             - "nb_workers" (int): Number of workers.
             - "data_loader" (DataLoader): The DataLoader of the dataset to be split.
             - "batch_size" (int): Batch size for the resulting DataLoader objects.
+            - "min_size" (int, optional): Minimum size of data per client for certain distributions.
         """
 
         # Type and Value checking, and initialization of the DataDistributor class
@@ -72,6 +73,11 @@ class DataDistributor:
             self.distribution_parameter = params["distribution_parameter"]
         else:
             self.distribution_parameter = None
+            
+        if "dirichlet_niid_modified" in self.data_dist: 
+            self.min_size=params.get("min_size",3000)
+        else :
+            self.min_size=0
 
         if not isinstance(params["nb_workers"], int) or params["nb_workers"] <= 0:
             raise ValueError("nb_workers must be a positive integer")
@@ -117,7 +123,7 @@ class DataDistributor:
         elif self.data_dist == "extreme_niid":
             split_idx = self.extreme_niid_idx(targets, idx)
         elif self.data_dist == "dirichlet_niid_modified":
-            split_idx= self.dirichlet_niid_modified_idx(targets, idx) #modified to account for minimal per node-batch size.
+            split_idx= self.dirichlet_niid_modified_idx(targets, idx, min_size=self.min_size) #modified to account for minimal per node-batch size.
         elif self.data_dist == "extreme_niid_modified":
             split_idx = self.extreme_niid_modified_idx(targets, idx)
         else:
@@ -251,52 +257,7 @@ class DataDistributor:
         idx = np.array(idx)
         return [list(idx[aux_idx[i]]) for i in range(len(aux_idx))]
     
-    def dirichlet_niid_modified_idx(self, targets, idx, min_size=10):
-        """
-        Creates a modified Dirichlet non-IID partition of the dataset, as in *mean is more robust*.
-        This partition ensures that each node has data, by adjusting the generated proportions until each node has at least min_size samples.
-
-        Parameters
-        ----------
-        targets : numpy.ndarray
-            Array of dataset targets (labels).
-        idx : numpy.ndarray
-            Array of dataset indices corresponding to the targets.
-            
-        min_size: int
-            default is 10, as in the literature.
-
-        Returns
-        -------
-        list[numpy.ndarray]
-            A list of arrays where each array contains indices for one client.
-        """
-
-        current_min_size=0
-        data_size = len(targets)
-        c = len(torch.unique(targets))
-        idx_classes = [np.where(targets[idx] == k)[0] for k in range(c)]
-
-        
-        partition = [[] for _ in range(self.nb_workers)]
-        while current_min_size < min_size:
-            partition = [[] for _ in range(self.nb_workers)]
-            for k in range(c):
-                idx_k = idx_classes[k]
-                random.shuffle(idx_k)
-                
-                proportions = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_workers))
-                # using the proportions from dirichlet, only select those nodes having data amount less than average
-                proportions = np.array(
-                    [p * (len(idx_j) < data_size / self.nb_workers) for p, idx_j in zip(proportions, partition)])
-                # scale proportions
-                proportions = proportions / proportions.sum()
-                proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
-                partition = [idx_j + idx.tolist() for idx_j, idx in zip(partition, np.split(idx_k, proportions))]
-                current_min_size = min([len(idx_j) for idx_j in partition])
-        return partition
-    
-    def dirichlet_niid_modified_idx(self, targets, idx, min_size=10):
+    def dirichlet_niid_modified_idx(self, targets, idx, min_size=3000):
         """
         Creates a modified Dirichlet non-IID partition of the dataset, as in *mean is more robust*.
         This partition ensures that each node has data, by adjusting the generated proportions until each node has at least min_size samples.

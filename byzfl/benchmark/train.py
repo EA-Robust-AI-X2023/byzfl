@@ -48,7 +48,7 @@ def start_training(params):
         "data_distribution_name": params_manager.get_name_data_distribution(),
         "distribution_parameter": (
             None if params_manager.get_name_data_distribution() 
-            in ["iid", "extreme_niid"] 
+            in ["iid", "extreme_niid", "extreme_niid_modified"] 
             else params_manager.get_parameter_data_distribution()
         ),
         "aggregation_name": params_manager.get_aggregator_name(),
@@ -127,6 +127,7 @@ def start_training(params):
         "nb_workers": nb_honest_clients + nb_byz_clients,
         "data_loader": train_dataset,
         "batch_size": batch_size,
+        "min_size": params_manager.get_min_size_data_distribution(),
     })
     client_dataloaders = data_distributor.split_data()
 
@@ -307,6 +308,7 @@ def start_training(params):
 
             # Update Global Model
             server.update_model_with_gradients(gradients_with_momentum)
+            
             if compute_gradient_scatterings_step:
                 #we are interested in the scatterings of honest and byzantine gradients whithout the momentum term
                 
