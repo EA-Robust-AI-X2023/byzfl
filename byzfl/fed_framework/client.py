@@ -93,25 +93,27 @@ class Client(ModelBaseInterface):
             self.gradient_LF = self.get_dict_gradients()
             self.model.train()
 
+                    
         
         if make_feature_measures:
 
-            train_loss_value, gradient_variance = self._backward_pass(inputs, targets, train_acc=self.store_per_client_metrics, compute_variance= compute_variance)
             mean_norm = torch.norm(inputs.mean(dim = 0))
+            
             feature_variance = torch.var(inputs, dim=0, unbiased = True).sum()
-            
-            if self.store_per_client_metrics:
-                self.loss_list.append(train_loss_value)
-
-            
-            if self.store_per_client_metrics:
-                self.loss_list.append(train_loss_value)
-
-            return train_loss_value, mean_norm, feature_variance, gradient_variance
+        else:
+            mean_norm = None
+            feature_variance = None
         
-        else : 
-            train_loss_value = self._backward_pass(inputs, targets, train_acc=self.store_per_client_metrics, compute_variance = False)
-            return train_loss_value, None, None, None
+        train_loss_value, gradient_variance = self._backward_pass(inputs, targets, train_acc=self.store_per_client_metrics, compute_variance=compute_variance)
+
+        if self.store_per_client_metrics:
+            self.loss_list.append(train_loss_value)
+
+        if self.store_per_client_metrics:
+            self.loss_list.append(train_loss_value)
+
+
+        return train_loss_value, mean_norm, feature_variance, gradient_variance
 
     def compute_gradients_and_update(self, make_feature_measures = False, compute_variance = False):
         """
