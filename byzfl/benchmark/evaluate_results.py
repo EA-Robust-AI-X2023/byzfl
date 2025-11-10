@@ -1309,8 +1309,18 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
                             pre_agg_list_names = [one_pre_agg['name'] for one_pre_agg in pre_agg]
                             pre_agg_names = "_".join(pre_agg_list_names)
                             for agg in aggregators:
-                                for attack in attacks: #in contrast with accuracy path, we separate attacks here
-
+                                tab_scat_ksi = np.zeros((len(attacks),
+                                        nb_data_distribution_seeds,
+                                        nb_training_seeds,
+                                        nb_scatterings
+                                    ))
+                                    
+                                tab_scat_A = np.zeros((len(attacks),
+                                    nb_data_distribution_seeds,
+                                    nb_training_seeds,
+                                    nb_scatterings
+                                ))
+                                for i_attack, attack in enumerate(attacks): #in contrast with accuracy path, we separate attacks here
                                     hyper_file_name = (
                                     f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
                                     f"{custom_dict_to_str(data_dist['name'])}_{dist_parameter}_{pre_agg_names}_{agg['name']}.txt"
@@ -1330,17 +1340,7 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
                                         wd = wd_list[0]
 
 
-                                    tab_scat_ksi = np.zeros((
-                                        nb_data_distribution_seeds,
-                                        nb_training_seeds,
-                                        nb_scatterings
-                                    ))
                                     
-                                    tab_scat_A = np.zeros((
-                                        nb_data_distribution_seeds,
-                                        nb_training_seeds,
-                                        nb_scatterings
-                                    ))
 
                                     for run_dd in range(nb_data_distribution_seeds):
                                         for run in range(nb_training_seeds):
@@ -1363,50 +1363,75 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
                                                 f"poisonned_scattering_tr_seed_{training_seed}_dd_seed_{data_distribution_seed}",
                                                 f"poisonned_gradients_scattering.txt"
                                             )
-                                            tab_scat_ksi[run_dd, run] = genfromtxt(path_scat_ksi)
-                                            tab_scat_A[run_dd, run] = genfromtxt(path_scat_A)
+                                            tab_scat_ksi[i_attack,run_dd, run] = genfromtxt(path_scat_ksi)
+                                            tab_scat_A[i_attack,run_dd, run] = genfromtxt(path_scat_A)
 
                                     #this part might need to be modified for the purpose of gradient scattering...
-                                    tab_scat_ksi = tab_scat_ksi.reshape(
+                                    tab_scat_ksi = tab_scat_ksi.reshape(len(attacks),
                                         nb_data_distribution_seeds * nb_training_seeds,
                                         nb_scatterings
                                     )
                                     
-                                    tab_scat_A = tab_scat_A.reshape(
+                                    tab_scat_A = tab_scat_A.reshape(len(attacks),
                                         nb_data_distribution_seeds * nb_training_seeds,
                                         nb_scatterings
                                     )
-                                    
-                                    err_ksi = (1.96*np.std(tab_scat_ksi, axis = 0))/math.sqrt(nb_training_seeds*nb_data_distribution_seeds)
-                                    err_A = (1.96*np.std(tab_scat_A, axis = 0))/math.sqrt(nb_training_seeds*nb_data_distribution_seeds)
+                                    err_A=np.zeros((len(attacks), nb_scatterings))
+                                    err_ksi=np.zeros((len(attacks), nb_scatterings))
+
+                                    err_ksi[i_attack] = (1.96*np.std(tab_scat_ksi[i_attack], axis = 0))/math.sqrt(nb_training_seeds*nb_data_distribution_seeds)
+                                    err_A[i_attack] = (1.96*np.std(tab_scat_A[i_attack], axis = 0))/math.sqrt(nb_training_seeds*nb_data_distribution_seeds)
 
                                     plt.rcParams.update({'font.size': 12})
-
                                     
-                                    attack = attack["name"]
-                                    gradient_type = "Momentum" if scatter_momentums else "Raw"
-                                    plt.plot(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_ksi, axis = 0), label = r"$ksi$", color = colors[0], linestyle = tab_sign[0], marker = None, markevery = 1)
-                                    plt.plot(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_A, axis = 0), label = r"$A$", color = colors[1], linestyle = tab_sign[1], marker = None, markevery = 1)
-                                    plt.fill_between(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_ksi, axis = 0) - err_ksi, np.mean(tab_scat_ksi, axis = 0) + err_ksi, alpha = 0.25)
-                                    plt.fill_between(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_A, axis = 0) - err_A, np.mean(tab_scat_A, axis = 0) + err_A, alpha = 0.25)
-
-                                    plt.xlim(0,(nb_scatterings-1)*evaluation_delta)
-                                    plt.xlabel('Round')
-                                    plt.ylabel("Gradient heterogeneity")
-                                    plt.title(f"{gradient_type} gradient scatterings, {data_dist["name"]}-{str(dist_parameter)} distribution")
-                                    plt.grid()
-                                    plt.legend()
-
-                                    plot_name = (
-                                        "honest_gradient_scattering"
-                                        f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
-                                        f"{custom_dict_to_str(data_dist['name'])}_{dist_parameter}_"
-                                        f"{custom_dict_to_str(agg['name'])}_{attack}_{pre_agg_names}_lr_{lr}_mom_{momentum}_wd_{wd}"
-                                        f"_scatter_momentums_{str(scatter_momentums)}"
+                                    tab_scat_ksi = tab_scat_ksi.reshape(len(attacks),
+                                        nb_data_distribution_seeds, nb_training_seeds,
+                                        nb_scatterings
                                     )
                                     
-                                    plt.savefig(path_to_plot+"/"+plot_name+'_plot.pdf')
-                                    plt.close()
+                                    tab_scat_A = tab_scat_A.reshape(len(attacks),
+                                        nb_data_distribution_seeds, nb_training_seeds,
+                                        nb_scatterings
+                                    )
+                                
+                                tab_scat_ksi = tab_scat_ksi.reshape(len(attacks),
+                                        nb_data_distribution_seeds * nb_training_seeds,
+                                        nb_scatterings
+                                    )
+                                    
+                                tab_scat_A = tab_scat_A.reshape(len(attacks),
+                                        nb_data_distribution_seeds * nb_training_seeds,
+                                        nb_scatterings
+                                    )
+                                
+                                #i_ksi is the index of the attack with the highest maximal scattering value for ksi. Hence we take the argmax:
+                                i_ksi = np.argmax(tab_scat_ksi.mean(axis=1).max(axis=1))
+
+                                gradient_type = "Momentum" if scatter_momentums else "Raw"
+                                plt.plot(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_ksi[i_ksi], axis = 0), label = r"$ksi$", color = colors[0], linestyle = tab_sign[0], marker = None, markevery = 1)
+                                # plt.fill_between(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_ksi[i_ksi], axis = 0) - err_ksi, np.mean(tab_scat_ksi[i_ksi], axis = 0) + err_ksi, alpha = 0.25)
+
+                                for i_attack, attack in enumerate(attacks):
+                                    plt.plot(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_A[i_attack], axis = 0), label = f"A - {attack["name"]}", color = colors[i_attack+1], linestyle = tab_sign[1], marker = None, markevery = 1)
+                                    # plt.fill_between(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_A[i_attack], axis = 0) - err_A[i_attack], np.mean(tab_scat_A[i_attack], axis = 0) + err_A[i_attack], alpha = 0.25)
+
+                                plt.xlim(0,(nb_scatterings-1)*evaluation_delta)
+                                plt.xlabel('Round')
+                                plt.ylabel("Gradient heterogeneity")
+                                plt.title(f"{gradient_type} gradient scatterings, {data_dist["name"]}-{str(dist_parameter)} distribution")
+                                plt.grid()
+                                plt.legend()
+
+                                plot_name = (
+                                    "honest_gradient_scattering"
+                                    f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
+                                    f"{custom_dict_to_str(data_dist['name'])}_{dist_parameter}_"
+                                    f"{custom_dict_to_str(agg['name'])}_{pre_agg_names}_lr_{lr}_mom_{momentum}_wd_{wd}"
+                                    f"_scatter_momentums_{str(scatter_momentums)}"
+                                )
+                                
+                                plt.savefig(path_to_plot+"/"+plot_name+'_plot.pdf')
+                                plt.close()
 
 
 
