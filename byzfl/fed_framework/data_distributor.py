@@ -66,7 +66,7 @@ class DataDistributor:
         self.data_dist = params["data_distribution_name"]
 
         if "distribution_parameter" in params.keys():
-            if not isinstance(params["distribution_parameter"], float):
+            if not isinstance(params["distribution_parameter"], float) and ("iid" not in self.data_dist) and ("extreme" not in self.data_dist):
                 raise TypeError("distribution_parameter must be a float")
             if self.data_dist == "gamma_similarity_niid" and not (0.0 <= params["distribution_parameter"] <= 1.0):
                 raise ValueError("distribution_parameter for gamma_similarity_niid must be between 0.0 and 1.0")
@@ -108,6 +108,7 @@ class DataDistributor:
         ValueError
             If the specified data distribution name is invalid.
         """
+        
         targets = self.data_loader.dataset.targets
         if isinstance(self.data_loader, torch.utils.data.DataLoader):
             idx = list(range(len(targets)))
@@ -278,7 +279,7 @@ class DataDistributor:
             A list of arrays where each array contains indices for one client.
         """
 
-        current_min_size=0
+        current_min_size=-1
         data_size = len(targets)
         c = len(torch.unique(targets))
         idx_classes = [np.where(targets[idx] == k)[0] for k in range(c)]
@@ -291,12 +292,25 @@ class DataDistributor:
                 idx_k = idx_classes[k]
                 random.shuffle(idx_k)
                 
-                proportions = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_workers))
-                # using the proportions from dirichlet, only select those nodes having data amount less than average
-                proportions = np.array(
+                proportions=np.array([])
+                iteration_count=0
+                #sample until there are no Nans or zero-sum
+                while proportions.sum() == 0 or np.isnan(proportions).any():
+                    proportions = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_workers))
+                    # using the proportions from dirichlet, only select those nodes having data amount less than average
+                    iteration_count+=1
+                    if iteration_count>100:
+                        print("⚠️ Warning: high number of iterations when sampling dirichlet proportions. distribution_parameter :", self.distribution_parameter)
+                        break
+                
+                proportions_filtered = np.array(
                     [p * (len(idx_j) < data_size / self.nb_workers) for p, idx_j in zip(proportions, partition)])
+                if proportions_filtered.sum() == 0:  # if all nodes have more than average, keep original proportions
+                    proportions_filtered = proportions
+                proportions = proportions_filtered
                 # scale proportions
                 proportions = proportions / proportions.sum()
+   
                 proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
                 partition = [idx_j + idx.tolist() for idx_j, idx in zip(partition, np.split(idx_k, proportions))]
                 current_min_size = min([len(idx_j) for idx_j in partition])
