@@ -499,7 +499,8 @@ def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, t
                                 pre_agg_list_names = [one_pre_agg['name'] for one_pre_agg in pre_agg]
                                 pre_agg_names = "_".join(pre_agg_list_names)
                                 
-                                fig, axes = plt.subplots(1,len(attacks), figsize=(10,10*len(attacks)), sharey=True)
+                                fig, axes = plt.subplots(1,len(attacks), figsize=(5*len(attacks),5), sharey=True)
+                                fig.suptitle(f"Accuracy paths, distribution: {data_dist['name']}_{str(dist_parameter)}", fontsize=14)
 
                                 for i_agg, agg in enumerate(aggregators):
 
@@ -562,17 +563,18 @@ def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, t
                                     for i, attack in enumerate(attacks):
                                         attack = attack["name"]
                                         ax = axes[i] if isinstance(axes, np.ndarray) else axes
-                                        ax.plot(np.arange(nb_accuracies)*evaluation_delta, np.mean(tab_acc[i], axis = 0), label = agg["name"], color = colors[i_agg+i], linestyle = tab_sign[i_agg+i], marker = markers[i_agg+i], markevery = 1)
+                                        ax.plot(np.arange(nb_accuracies)*evaluation_delta, np.mean(tab_acc[i], axis = 0), label = agg["name"], color = colors[i_agg], linestyle = tab_sign[i_agg], marker = markers[i_agg], markevery = 1)
                                         ax.fill_between(np.arange(nb_accuracies)*evaluation_delta, np.mean(tab_acc[i], axis = 0) - err[i], np.mean(tab_acc[i], axis = 0) + err[i], alpha = 0.25)
-                                        ax.set_title(f"Accuracy path for {attack} attack, distribution: {data_dist["name"]}_{str(dist_parameter)}")
+                                        ax.set_title(f"{attack} attack", fontsize=10)
+                                        ax.set_xlim(0,(nb_accuracies-1)*evaluation_delta)
+                                        ax.grid()
+                                        ax.legend()
+                                        ax.set_xlabel('Round')
+                                        ax.set_ylabel('Accuracy')
+                                        ax.set_ylim(0,1)
                                         ax.set_xlim(0,(nb_accuracies-1)*evaluation_delta)
 
-                                plt.xlabel('Round')
-                                plt.ylabel('Accuracy')
-                                plt.xlim(0,(nb_accuracies-1)*evaluation_delta)
-                                plt.ylim(0,1)
-                                plt.grid()
-                                plt.legend()
+                                plt.tight_layout()
 
                                 plot_name = (
                                     f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
@@ -1400,6 +1402,7 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
                                         f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
                                         f"{custom_dict_to_str(data_dist['name'])}_{dist_parameter}_"
                                         f"{custom_dict_to_str(agg['name'])}_{attack}_{pre_agg_names}_lr_{lr}_mom_{momentum}_wd_{wd}"
+                                        f"_scatter_momentums_{str(scatter_momentums)}"
                                     )
                                     
                                     plt.savefig(path_to_plot+"/"+plot_name+'_plot.pdf')
