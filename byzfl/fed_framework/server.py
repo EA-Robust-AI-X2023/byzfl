@@ -80,7 +80,7 @@ class Server(ModelBaseInterface):
         aggregate_weights = self.aggregate(weights)
         self.set_parameters(aggregate_weights)
 
-    def update_model_with_models(self, models):
+    def update_model_with_models(self, models, global_model):
         """
         Description
         -----------
@@ -91,7 +91,7 @@ class Server(ModelBaseInterface):
         models : list
             A list of models to aggregate and apply to the global model.
         """
-        aggregate_weights = self.aggregate(models)
+        aggregate_weights = self.aggregate(models, global_model)
         # Some aggregators (e.g. Lfighter) return a state_dict (mapping of tensors),
         # while others return a flat vector. Handle both cases.
         if isinstance(aggregate_weights, dict):
