@@ -114,7 +114,6 @@ class DataDistributor:
             idx = list(range(len(targets)))
         else:
             idx = self.data_loader.indices
-
         if self.data_dist == "iid":
             split_idx = self.iid_idx(idx)
         elif self.data_dist == "gamma_similarity_niid":
@@ -188,17 +187,17 @@ class DataDistributor:
             A list of arrays where each array contains indices for one client.
         """
         if len(idx) == 0:
-            return list([[]] * self.nb_workers)
+            return np.array([[]] * self.nb_workers)
         # sorted_idx = np.array(sorted(zip(targets[idx], idx)))[:, 1]
         # return np.array_split(sorted_idx, self.nb_workers)
-        
-      
+        idx = np.array(idx, dtype=int)
+
         classes=torch.unique(targets)
         class_idx_dict = {target: idx_target for idx_target, target in enumerate(classes)} #allows to convert labels to consecutive integers
         
         c=len(class_idx_dict) #nb of classes
         
-        aux_idx = [np.where(targets[idx] == k)[0] for k in classes] #stores indices corresponding to each class
+        aux_idx = [idx[np.where(targets[idx] == k)[0]] for k in classes] #stores indices corresponding to each class
 
         if c>= self.nb_workers: #more classes than clients: some clients have multiple classes.
             partition = [np.array([], dtype=int) for _ in range(self.nb_workers)]
@@ -282,13 +281,18 @@ class DataDistributor:
         current_min_size=-1
         data_size = len(targets)
         c = len(torch.unique(targets))
-        idx_classes = [np.where(targets[idx] == k)[0] for k in range(c)]
+        
+        idx = np.array(idx, dtype=int)
+
+        idx_classes = [idx[np.where(targets[idx] == k)[0]] for k in range(c)]
 
         
         partition = [[] for _ in range(self.nb_workers)]
         while current_min_size < min_size:
             partition = [[] for _ in range(self.nb_workers)]
-            for k in range(c):
+            classes = [i for i in range(c)]
+            random.shuffle(classes)
+            for k in classes:
                 idx_k = idx_classes[k]
                 random.shuffle(idx_k)
                 
@@ -304,13 +308,12 @@ class DataDistributor:
                         break
                 
                 proportions_filtered = np.array(
-                    [p * (len(idx_j) < data_size / self.nb_workers) for p, idx_j in zip(proportions, partition)])
+                    [p * (len(idx_j) < min_size) for p, idx_j in zip(proportions, partition)]) # here, we use min_size rather than data_size/nb_workers to avoid big slow downs 
                 if proportions_filtered.sum() == 0:  # if all nodes have more than average, keep original proportions
                     proportions_filtered = proportions
                 proportions = proportions_filtered
                 # scale proportions
                 proportions = proportions / proportions.sum()
-   
                 proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
                 partition = [idx_j + idx.tolist() for idx_j, idx in zip(partition, np.split(idx_k, proportions))]
                 current_min_size = min([len(idx_j) for idx_j in partition])
