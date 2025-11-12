@@ -1,10 +1,11 @@
 import math
 import json
 import os
+import matplotlib.pyplot as plt
+from collections import Counter
 
 import numpy as np
 from numpy import genfromtxt
-import matplotlib.pyplot as plt
 from byzfl.benchmark.managers import FileManager
 import seaborn as sns
 
@@ -1954,3 +1955,38 @@ def gradient_estimator_variance(path_to_results, path_to_plot):
 def rho_SGD_convergence_rate():
     # laquelle :)
     pass
+
+
+def plot_worker_class_distribution(clients, path, num_classes, dist_name):
+    """
+    Description
+    -----------
+    plot and save the repartition of classes accross the client's data subset
+        clients = Client object list
+    """
+    nb_clients = len(clients)
+
+    colors = plt.cm.tab10.colors  
+    
+    proportions = []
+    for client in clients:
+        subset = client.training_dataloader.dataset
+        targets = np.array([subset.dataset.targets[idx] for idx in subset.indices])
+        counts = Counter(targets)
+        total = len(targets)
+        prop = [counts.get(c, 0) for c in range(num_classes)]
+        proportions.append(prop)
+    proportions=np.array(proportions)
+    
+    # Plot horizontal empilé
+    left = np.zeros(nb_clients)
+    for c in range(num_classes):
+        plt.barh(range(nb_clients), proportions[:, c], left=left,
+                color=colors[c], label=f'Classe {c}')
+        left += proportions[:, c]
+
+    plt.legend()
+    plt.yticks(range(nb_clients))
+    plt.savefig(os.path.join(path,"worker_distributions.png"), dpi=300)
+    
+    

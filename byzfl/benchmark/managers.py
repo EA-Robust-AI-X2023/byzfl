@@ -60,6 +60,12 @@ class FileManager:
         """
         file_path = os.path.join(self.files_path, file_name)
         np.savetxt(file_path, [array], fmt="%.4f", delimiter=",")
+    
+    def write_plot_in_file_path(self):
+        """
+        returns the path to store a matplotlib figure in
+        """
+        return self.files_path
 
     def save_state_dict(self, state_dict, training_seed, data_dist_seed, step):
         """
@@ -386,6 +392,13 @@ class ParamsManager(object):
         #allows to compute scatterings on momentum buffers rather than raw gradients
         default = False
         path = ["evaluation_and_results", "scatter_momentums"]
+        read = self._read_object(path)
+        return self._parameter_to_use(default, read)
+    
+    
+    def get_plot_worker_distributions(self):
+        default = False
+        path = ["evaluation_and_results", "plot_worker_distributions"]
         read = self._read_object(path)
         return self._parameter_to_use(default, read)
     
