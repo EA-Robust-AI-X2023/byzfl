@@ -690,7 +690,7 @@ class Lfighter(object):
             w_avg[key] = w_avg[key] *(1/sum(marks))
         return w_avg
 
-    def __call__(self, local_models):
+    def __call__(self, local_models, global_model):
 
         local_weights = [copy.deepcopy(model).state_dict() for model in local_models]
         m = len(local_models)
@@ -699,8 +699,8 @@ class Lfighter(object):
         dw = [None for _ in range(m)]
         db = [None for _ in range(m)]
         for i in range(m):
-            dw[i]= - local_models[i][-2].cpu().data.numpy() 
-            db[i]= - local_models[i][-1].cpu().data.numpy()
+            dw[i]= global_model[i][-2].cpu().data.numpy() - local_models[i][-2].cpu().data.numpy() 
+            db[i]= global_model[i][-2].cpu().data.numpy() - local_models[i][-1].cpu().data.numpy()
         dw = np.asarray(dw)
         db = np.asarray(db)
 

@@ -409,7 +409,7 @@ def start_training(params):
 
             # Combine Honest and poisonned models
             clients = honest_clients + poisonned_clients
-            server.update_model_with_models([client.model for client in clients])
+            server.update_model_with_models([client.model for client in clients], server.model)
 
         else:
             raise ValueError(f"Training algorithm {training_algorithm_name} not supported")
