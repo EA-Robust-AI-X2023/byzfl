@@ -1957,7 +1957,7 @@ def rho_SGD_convergence_rate():
     pass
 
 
-def plot_worker_class_distribution(clients, path, num_classes, dist_name):
+def plot_worker_class_distribution(clients, path, num_classes, dist_name, dd_seed):
     """
     Description
     -----------
@@ -1980,6 +1980,7 @@ def plot_worker_class_distribution(clients, path, num_classes, dist_name):
     
     # Plot horizontal empilé
     left = np.zeros(nb_clients)
+    plt.figure()
     for c in range(num_classes):
         plt.barh(range(nb_clients), proportions[:, c], left=left,
                 color=colors[c], label=f'Classe {c}')
@@ -1987,6 +1988,7 @@ def plot_worker_class_distribution(clients, path, num_classes, dist_name):
 
     plt.legend()
     plt.yticks(range(nb_clients))
-    plt.savefig(os.path.join(path,"worker_distributions.png"), dpi=300)
+    plt.savefig(os.path.join(path,f"worker_distributions_dd_seed_{dd_seed}.png"), dpi=300)
+    plt.close()
     
     

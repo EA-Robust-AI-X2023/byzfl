@@ -192,7 +192,7 @@ def start_training(params):
     
     if params_manager.get_plot_worker_distributions():
         path_plot_distribution = file_manager.write_plot_in_file_path()
-        plot_worker_class_distribution(honest_clients+poisonned_clients, path_plot_distribution,params_manager.get_nb_labels(), params_manager.get_name_data_distribution())
+        plot_worker_class_distribution(honest_clients+poisonned_clients, path_plot_distribution,params_manager.get_nb_labels(), params_manager.get_name_data_distribution(), dd_seed)
         
 
 
