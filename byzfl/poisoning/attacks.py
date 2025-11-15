@@ -37,25 +37,18 @@ class StaticLabelFlipping(object):
     """
     def __init__(self, permutation = {0:9, 1:8, 2:7, 3:6, 4:5, 5:4, 6:3, 7:2, 8:1, 9:0}):
         if not isinstance(permutation, dict):
-            raise TypeError("permutation must be a dict.")
-        #convert all values in permutation to integers. Not optimal but best to avoid bugs
-        permutation_int={}
-        for i,j in permutation.items():
-            permutation_int[int(i)]=int(j)
-        self.permutation=permutation_int
+            raise TypeError("`permutation` must be a dict.")
+        self.permutation = {int(i): int(j) for i, j in permutation.items()}
     
     def __call__(self, model, inputs, targets):
-        # Support both torch.Tensor and numpy.ndarray targets
         if torch.is_tensor(targets):
-            # convert to cpu numpy, apply permutation, then convert back to same device/dtype
-            device = targets.device
-            dtype = targets.dtype
-            targets_np = targets.detach().cpu().numpy()
-            poisoned_np = np.array([self.permutation[int(t)] for t in targets_np], dtype=np.int64)
-            poisoned_targets = torch.from_numpy(poisoned_np).to(device=device, dtype=dtype)
+            poisoned_targets = torch.tensor(
+                [self.permutation[t.item()] for t in targets],
+                device=targets.device,
+                dtype=targets.dtype,
+            )
             return inputs, poisoned_targets
         else:
-            # assume numpy array-like
             poisoned = np.array([self.permutation[int(t)] for t in targets], dtype=np.int64)
             return inputs, poisoned
     
