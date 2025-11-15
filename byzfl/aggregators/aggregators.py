@@ -746,9 +746,17 @@ class Lfighter(object):
     
 
 class Faba(object):
+    """
+    Apply the FABA aggregator.
 
-    r"""
-    Pend & al implementation of FABA aggregator, change if needed
+    This algorithm iteratively removes outliers and computes the mean of the resulting
+    vectors [1]_.
+
+    ## References
+
+    .. [1] Qi Xia, Zeyi Tao, Zijiang Hao, Qun Li. FABA: An Algorithm for Fast Aggregation
+           against Byzantine Attacks in Distributed Neural Networks. In International
+           Joint Conference on Artificial Intelligence, pp. 4824-4830. IJCAI, 2019.
     """
 
     def __init__(self, f=0):
@@ -761,14 +769,13 @@ class Faba(object):
 
         for _ in range(self.f):
             if not torch.is_tensor(remain):
-                remain=torch.stack(remain)
-            mean = torch.mean(remain, dim=0)
-            # remove the largest 'byzantine_size' model
-            distances = torch.tensor([
-                torch.norm(model - mean) for model in remain
-            ])
+                remain = torch.stack(remain)
+            
+            mean = torch.mean(remain, dim=0, keepdim=True)
+            distances = torch.norm(remain - mean, dim=1)
             remove_index = distances.argmax()
             remain = remain[torch.arange(remain.size(0)) != remove_index]
+        
         return remain.mean(dim=0)
 
 
