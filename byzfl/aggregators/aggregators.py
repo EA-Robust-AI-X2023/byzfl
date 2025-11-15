@@ -656,80 +656,91 @@ class MultiKrum(object):
     
 
 class Lfighter(object):
+    """Apply the LFighter aggregator.
 
-    r"""
-    Official implementation of LFighter aggregator from : 
-    https://www.sciencedirect.com/science/article/pii/S0893608023006421?ref=pdf_download&fr=RR-2&rr=994c922159722a07
-    """
-    def __init__(self, num_classes = 10):
-        self.memory = np.zeros([num_classes])
+    This defense is tailored against label flipping attacks. It applies a clustering
+    method on the gradients to filter out potential poisons.
     
-    def clusters_dissimilarity(self, clusters):
-        n0 = len(clusters[0])
-        n1 = len(clusters[1])
-        m = n0 + n1 
-        cs0 = smp.cosine_similarity(clusters[0]) - np.eye(n0)
-        cs1 = smp.cosine_similarity(clusters[1]) - np.eye(n1)
-        mincs0 = np.min(cs0, axis=1)
-        mincs1 = np.min(cs1, axis=1)
-        ds0 = n0/m * (1 - np.mean(mincs0))
-        ds1 = n1/m * (1 - np.mean(mincs1))
+    LFighter is suitable in non i.i.d federated learning settings [1]_.
+    
+    ## Notes       
+    
+    The implementation is based on https://github.com/najeebjebreel/LFighter,
+    but restricted to the multi-class setting.
+
+    ## References
+
+    .. [1] Najeeb Moharram Jebreel, Josep Domingo-Ferrer, David Sánchez and Alberto
+           Blanco-Justicia. Defending against the Label-flipping Attack in Federated
+           Learning. In arXiv, 2022.
+    """
+    
+    def clusters_dissimilarity(
+        self,
+        cluster_a: np.ndarray,
+        cluster_b: np.ndarray,
+    ) -> tuple[float, float]:
+        n0, n1 = len(cluster_a), len(cluster_b)
+        total = n0 + n1
+
+        def _cluster_score(cluster: np.ndarray, size: int) -> float:
+            sim_matrix = smp.cosine_similarity(cluster) - np.eye(size)
+            min_sim = np.min(sim_matrix, axis=1)
+            return (size / total) * (1.0 - np.mean(min_sim))
+
+        ds0 = _cluster_score(cluster_a, n0)
+        ds1 = _cluster_score(cluster_b, n1)
+
         return ds0, ds1
     
-    # Get average weights
-    def average_weights(self,w, marks):
-        """
-        Returns the average of the weights.
-        """
-        w_avg = copy.deepcopy(w[0])
-        for key in w_avg.keys():
-            w_avg[key] = w_avg[key] * marks[0]
-        for key in w_avg.keys():
-            for i in range(1, len(w)):
-                w_avg[key] += w[i][key] * marks[i]
-            w_avg[key] = w_avg[key] *(1/sum(marks))
-        return w_avg
+    def average_weights(self, w: list, marks: list):
+        """Return the weighted average of a list of state dicts."""
+        total_marks = sum(marks)
+        norm_marks = [m / total_marks for m in marks]
+
+        avg = copy.deepcopy(w[0])
+        for key in avg.keys():
+            avg[key] = sum(state_dict[key] * m for state_dict, m in zip(w, norm_marks))
+
+        return avg
 
     def __call__(self, local_models, global_model):
-
         local_weights = [copy.deepcopy(model).state_dict() for model in local_models]
+
         m = len(local_models)
         for i in range(m):
             local_models[i] = list(local_models[i].parameters())
-        dw = [None for _ in range(m)]
-        db = [None for _ in range(m)]
-        for i in range(m):
-            dw[i]= global_model[i][-2].cpu().data.numpy() - local_models[i][-2].cpu().data.numpy() 
-            db[i]= global_model[i][-2].cpu().data.numpy() - local_models[i][-1].cpu().data.numpy()
-        dw = np.asarray(dw)
-        db = np.asarray(db)
+        global_model = list(global_model.parameters())
+        
+        dw = np.array([
+            global_model[i][-2].numpy(force=True) - local_models[i][-2].numpy(force=True)
+            for i in range(m)
+        ])
+        db = np.array([
+            global_model[i][-1].numpy(force=True) - local_models[i][-1].numpy(force=True)
+            for i in range(m)
+        ])
 
-        "All models we consider are multiclassification models"
-        norms = np.linalg.norm(dw, axis = -1) 
-        self.memory = np.sum(norms, axis = 0)
-        self.memory +=np.sum(abs(db), axis = 0)
-        max_two_freq_classes = self.memory.argsort()[-2:]
-        data = []
-        for i in range(m):
-            data.append(dw[i][max_two_freq_classes].reshape(-1))
-
+        norms = np.linalg.norm(dw, axis = -1)
+        agg_norm = np.sum(norms, axis = 0)
+        agg_norm += np.sum(abs(db), axis = 0)
+        max_two_freq_classes = agg_norm.argsort()[-2:]
+        
+        data = [
+            dw[i][max_two_freq_classes].reshape(-1)
+            for i in range(m)
+        ]
         kmeans = KMeans(n_clusters=2, random_state=0).fit(data)
         labels = kmeans.labels_
 
-        clusters = {0:[], 1:[]}
-        for i, l in enumerate(labels):
-          clusters[l].append(data[i])
+        clusters = {0: [], 1: []}
+        for i, label in enumerate(labels):
+          clusters[label].append(data[i])
 
-        good_cl = 0
-        cs0, cs1 = self.clusters_dissimilarity(clusters)
-        if cs0 < cs1:
-            good_cl = 1
-        scores = np.ones([m])
+        cs0, cs1 = self.clusters_dissimilarity(clusters[0], clusters[1])
+        good_cluster = 1 if cs0 < cs1 else 0
 
-        for i, l in enumerate(labels):
-            if l != good_cl:
-                scores[i] = 0
-            
+        scores = np.where(labels == good_cluster, 1.0, 0.0)     
         global_weights = self.average_weights(local_weights, scores)
         return global_weights
     
