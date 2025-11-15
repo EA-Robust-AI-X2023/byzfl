@@ -279,7 +279,8 @@ class DataDistributor:
         """
 
         current_min_size=-1
-        data_size = len(targets)
+        data_size = len(idx) #here, we take the length of idx, since not all the data is in the train set..
+
         c = len(torch.unique(targets))
         
         idx = np.array(idx, dtype=int)
@@ -297,21 +298,10 @@ class DataDistributor:
                 random.shuffle(idx_k)
                 
                 proportions=np.array([])
-                iteration_count=0
-                #sample until there are no Nans or zero-sum
-                while proportions.sum() == 0 or np.isnan(proportions).any():
-                    proportions = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_workers))
-                    # using the proportions from dirichlet, only select those nodes having data amount less than average
-                    iteration_count+=1
-                    if iteration_count>100:
-                        print("⚠️ Warning: high number of iterations when sampling dirichlet proportions. distribution_parameter :", self.distribution_parameter)
-                        break
+                proportions = np.random.dirichlet(np.repeat(self.distribution_parameter, self.nb_workers))
                 
-                proportions_filtered = np.array(
-                    [p * (len(idx_j) < min_size) for p, idx_j in zip(proportions, partition)]) # here, we use min_size rather than data_size/nb_workers to avoid big slow downs 
-                if proportions_filtered.sum() == 0:  # if all nodes have more than average, keep original proportions
-                    proportions_filtered = proportions
-                proportions = proportions_filtered
+                proportions = np.array(
+                    [p * (len(idx_j) < data_size/self.nb_workers) for p, idx_j in zip(proportions, partition)]) # here, we use min_size rather than data_size/nb_workers to avoid big slow downs 
                 # scale proportions
                 proportions = proportions / proportions.sum()
                 proportions = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
