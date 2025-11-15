@@ -1,7 +1,7 @@
 
-from copy import deepcopy
-import torch as torch
+from loguru import logger
 import numpy as np
+import torch as torch
 
 
 class StaticLabelFlipping(object): 
@@ -94,11 +94,11 @@ class DynamicLabelFlipping(object):
         flipped_targets = model(inputs).argmin(dim=1)
 
         if self.print_flips:
-            print(f"Flipping targets:")
+            logger.debug("Flipping targets:")
             for i, (original, flipped) in enumerate(zip(targets, flipped_targets)):
                 if original != flipped:
-                    print(f"{original} -> {flipped} /")
-            print("\n")
+                    logger.debug(f"{original} -> {flipped} /")
+            logger.debug("\n")
 
         return inputs, flipped_targets
     

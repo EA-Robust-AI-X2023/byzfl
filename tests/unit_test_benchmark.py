@@ -2,6 +2,7 @@ import sys
 import os
 import json
 
+from loguru import logger
 import numpy as np
 import pytest
 
@@ -132,7 +133,7 @@ class TestBenchmark:
 
                 if file_path.endswith(".txt"):
                     data = np.loadtxt(file_path, delimiter=",")
-                    print(len(data))
+                    logger.debug(len(data))
                     assert len(data) == expected_len[i], f"Unexpected length in {file_path}: got {len(data)}"
 
         except Exception as e:

@@ -4,6 +4,7 @@ import os
 import matplotlib.pyplot as plt
 from collections import Counter
 
+from loguru import logger
 import numpy as np
 from numpy import genfromtxt
 from byzfl.benchmark.managers import FileManager
@@ -42,7 +43,7 @@ def find_best_hyperparameters(path_to_results):
         with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
             data = json.load(file)
     except Exception as e:
-        print(f"ERROR reading config.json: {e}")
+        logger.error(f"Failed reading config.json: {e}")
         return
     
     path_hyperparameters = path_to_results + "/best_hyperparameters"
@@ -187,7 +188,7 @@ def find_best_hyperparameters(path_to_results):
                                     try:
                                         os.makedirs(path_hyperparameters)
                                     except OSError as error:
-                                        print(f"Error creating directory: {error}")
+                                        logger.error(f"Failed creating directory: {error}")
 
                                 # Find the combination that maximizes the minimum accuracy across attacks
                                 max_minimum_idx = -1
@@ -241,13 +242,13 @@ def test_accuracy_curve(path_to_results, path_to_plot, colors=colors, tab_sign=t
             with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
                 data = json.load(file)
         except Exception as e:
-            print(f"ERROR reading config.json: {e}")
+            logger.error(f"Failed reading config.json: {e}")
             return
         
         try:
             os.makedirs(path_to_plot, exist_ok=True)
         except OSError as error:
-            print(f"Error creating directory: {error}")
+            logger.error(f"Failed creating directory: {error}")
         
         path_to_hyperparameters = path_to_results + "/best_hyperparameters"
         
@@ -415,13 +416,13 @@ def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, t
             with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
                 data = json.load(file)
         except Exception as e:
-            print(f"ERROR reading config.json: {e}")
+            logger.error(f"Failed reading config.json: {e}")
             return
         
         try:
             os.makedirs(path_to_plot, exist_ok=True)
         except OSError as error:
-            print(f"Error creating directory: {error}")
+            logger.error(f"Failed creating directory: {error}")
         
         path_to_hyperparameters = path_to_results + "/best_hyperparameters"
         
@@ -600,13 +601,13 @@ def loss_heatmap(path_to_results, path_to_plot):
         with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
             data = json.load(file)
     except Exception as e:
-        print(f"ERROR reading config.json: {e}")
+        logger.error(f"Failed reading config.json: {e}")
         return
     
     try:
         os.makedirs(path_to_plot, exist_ok=True)
     except OSError as error:
-        print(f"Error creating directory: {error}")
+        logger.error(f"Failed creating directory: {error}")
     
     path_to_hyperparameters = path_to_results + "/best_hyperparameters" 
 
@@ -728,7 +729,7 @@ def loss_heatmap(path_to_results, path_to_plot):
                                         with open(path_to_results+ "/" + config_file_name +'/config.json', 'r') as file:
                                             data = json.load(file)
                                     except Exception as e:
-                                        print("ERROR: "+ str(e))
+                                        logger.exception(e)
 
                                     nb_steps = data["benchmark_config"]["nb_steps"]
 
@@ -786,7 +787,7 @@ def loss_heatmap(path_to_results, path_to_plot):
                         try:
                             os.makedirs(path_to_plot, exist_ok=True)
                         except OSError as error:
-                            print(f"Error creating directory: {error}")
+                            logger.error(f"Failed creating directory: {error}")
 
                         sns.heatmap(heat_map_table, xticklabels=row_names, yticklabels=column_names, cmap=sns.cm.rocket_r, annot=True)
                         plt.xlabel("Number of Byzantine clients")
@@ -807,13 +808,13 @@ def test_heatmap(path_to_results, path_to_plot):
         with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
             data = json.load(file)
     except Exception as e:
-        print(f"ERROR reading config.json: {e}")
+        logger.error(f"Failed reading config.json: {e}")
         return
     
     try:
         os.makedirs(path_to_plot, exist_ok=True)
     except OSError as error:
-        print(f"Error creating directory: {error}")
+        logger.error(f"Failed creating directory: {error}")
     
     path_to_hyperparameters = path_to_results + "/best_hyperparameters"
 
@@ -934,7 +935,7 @@ def test_heatmap(path_to_results, path_to_plot):
                                         with open(path_to_results+ "/" + config_file_name +'/config.json', 'r') as file:
                                             data = json.load(file)
                                     except Exception as e:
-                                        print("ERROR: "+ str(e))
+                                        logger.exception(e)
 
                                     nb_steps = data["benchmark_config"]["nb_steps"]
                                     nb_accuracies = int(1+math.ceil(nb_steps/evaluation_delta))
@@ -993,7 +994,7 @@ def test_heatmap(path_to_results, path_to_plot):
                         try:
                             os.makedirs(path_to_plot, exist_ok=True)
                         except OSError as error:
-                            print(f"Error creating directory: {error}")
+                            logger.error(f"Failed creating directory: {error}")
 
                         sns.heatmap(heat_map_table, xticklabels=row_names, yticklabels=column_names, annot=True)
                         plt.xlabel("Number of Byzantine clients")
@@ -1013,12 +1014,12 @@ def aggregated_test_heatmap(path_to_results, path_to_plot):
         with open(path_to_results+'/config.json', 'r') as file:
             data = json.load(file)
     except Exception as e:
-        print("ERROR: "+ str(e))
+        logger.exception(e)
 
     try:
         os.makedirs(path_to_plot, exist_ok=True)
     except OSError as error:
-        print(f"Error creating directory: {error}")
+        logger.error(f"Failed creating directory: {error}")
     
     path_to_hyperparameters = path_to_results + "/best_hyperparameters"
     
@@ -1146,7 +1147,7 @@ def aggregated_test_heatmap(path_to_results, path_to_plot):
                                         with open(path_to_results+ "/" + config_file_name +'/config.json', 'r') as file:
                                             data = json.load(file)
                                     except Exception as e:
-                                        print("ERROR: "+ str(e))
+                                        logger.exception(e)
 
                                     nb_steps = data["benchmark_config"]["nb_steps"]
                                     nb_accuracies = int(1+math.ceil(nb_steps/evaluation_delta))
@@ -1222,13 +1223,13 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
         with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
             data = json.load(file)
     except Exception as e:
-        print(f"ERROR reading config.json: {e}")
+        logger.error(f"Failed reading config.json: {e}")
         return
     
     try:
         os.makedirs(path_to_plot, exist_ok=True)
     except OSError as error:
-        print(f"Error creating directory: {error}")
+        logger.error(f"Failed creating directory: {error}")
     
     path_to_hyperparameters = path_to_results + "/best_hyperparameters"
     
@@ -1445,13 +1446,13 @@ def plot_maximum_regular_feature_mean(path_to_results, path_to_plot):
         with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
             data = json.load(file)
     except Exception as e:
-        print(f"ERROR reading config.json: {e}")
+        logger.error(f"Failed reading config.json: {e}")
         return
     
     try:
         os.makedirs(path_to_plot, exist_ok=True)
     except OSError as error:
-        print(f"Error creating directory: {error}")
+        logger.error(f"Failed creating directory: {error}")
     
     path_to_hyperparameters = path_to_results + "/best_hyperparameters"
     
@@ -1615,13 +1616,13 @@ def plot_workers_feature_variance(path_to_results, path_to_plot):
         with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
             data = json.load(file)
     except Exception as e:
-        print(f"ERROR reading config.json: {e}")
+        logger.error(f"Failed reading config.json: {e}")
         return
     
     try:
         os.makedirs(path_to_plot, exist_ok=True)
     except OSError as error:
-        print(f"Error creating directory: {error}")
+        logger.error(f"Failed creating directory: {error}")
     
     path_to_hyperparameters = path_to_results + "/best_hyperparameters"
     
@@ -1790,13 +1791,13 @@ def gradient_estimator_variance(path_to_results, path_to_plot):
         with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
             data = json.load(file)
     except Exception as e:
-        print(f"ERROR reading config.json: {e}")
+        logger.error(f"Failed reading config.json: {e}")
         return
     
     try:
         os.makedirs(path_to_plot, exist_ok=True)
     except OSError as error:
-        print(f"Error creating directory: {error}")
+        logger.error(f"Failed creating directory: {error}")
     
     path_to_hyperparameters = path_to_results + "/best_hyperparameters"
     

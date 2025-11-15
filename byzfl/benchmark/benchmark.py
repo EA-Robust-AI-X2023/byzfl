@@ -2,6 +2,7 @@ import json
 from multiprocessing import Pool, Value
 import os
 import copy
+from loguru import logger
 
 from byzfl.benchmark.train import start_training
 from byzfl.benchmark.evaluate_results import find_best_hyperparameters
@@ -222,7 +223,7 @@ def run_training(params):
     """
     start_training(params)
     with counter.get_lock():
-        print(f"Training {counter.value} done")
+        logger.info(f"Training {counter.value} done")
         counter.value += 1
 
 def eliminate_experiments_done(dict_list):
@@ -517,16 +518,16 @@ def run_benchmark(nb_jobs=1):
         
         data = ensure_optional_config_parameters(data)
         if float(data["benchmark_config"]["size_train_set"]) == 1.0:
-            print("WARNING: NO VALIDATION DATASET USED FOR HYPERPARAMETER EXPLORATION (Learning Rate, Momentum, Weight Decay)")
+            logger.warning("NO VALIDATION DATASET USED FOR HYPERPARAMETER EXPLORATION (Learning Rate, Momentum, Weight Decay)")
 
     except FileNotFoundError:
-        print("'config.json' not found. Creating a default one...")
+        logger.warning("'config.json' not found. Creating a default one...")
 
         with open('config.json', 'w') as f:
             json.dump(default_config, f, indent=4)
 
-        print("'config.json' created successfully.")
-        print("Please configure the experiment you want to run and re-run.")
+        logger.info("'config.json' created successfully.")
+        logger.info("Please configure the experiment you want to run and re-run.")
 
         return
 
@@ -566,20 +567,20 @@ def run_benchmark(nb_jobs=1):
     # Remove already completed experiments
     dict_list = eliminate_experiments_done(dict_list)
 
-    print(f"Total trainings to do: {len(dict_list)}")
-    print(f"Running {nb_jobs} trainings in parallel...")
+    logger.info(f"Total trainings to do: {len(dict_list)}")
+    logger.info(f"Running {nb_jobs} trainings in parallel...")
 
     counter = Value('i', 0)
     with Pool(initializer=init_pool_processes, initargs=(counter,), processes=nb_jobs) as pool:
         pool.map(run_training, dict_list)
 
-    print("All trainings finished.")
+    logger.info("All trainings finished.")
 
     if float(data["benchmark_config"]["size_train_set"]) == 1.0:
-        print("No hyperparameter exploration done.")
+        logger.info("No hyperparameter exploration done.")
     else:
-        print("Selecting Best Hyperparameters...")
+        logger.info("Selecting Best Hyperparameters...")
 
         find_best_hyperparameters(results_directory)
 
-        print("Done")
+        logger.info("Done")

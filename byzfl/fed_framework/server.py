@@ -1,3 +1,4 @@
+from loguru import logger
 import torch
 
 from byzfl.fed_framework import ModelBaseInterface, RobustAggregator
@@ -157,7 +158,7 @@ class Server(ModelBaseInterface):
             If the validation DataLoader is not set.
         """
         if self.validation_loader is None:
-            print("Validation Data Loader is not set.")
+            logger.critical("Validation Data Loader is not set.")
             return
         return self._compute_accuracy(self.validation_loader)
 
