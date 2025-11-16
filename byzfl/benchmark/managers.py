@@ -60,12 +60,21 @@ class FileManager:
         """
         file_path = os.path.join(self.files_path, file_name)
         np.savetxt(file_path, [array], fmt="%.4f", delimiter=",")
+        
+    def write_matrix_in_file(self, matrix, file_name):
+        file_path = os.path.join(self.files_path, file_name)
+        np.savetxt(file_path, matrix, fmt="%.4f", delimiter=",")
     
-    def write_plot_in_file_path(self):
+    def make_distribution_dir(self):
+        """_summary_
+        creates the directory for information on the distribution of data, and returns the corresponding path
+        Returns:
+            str: path to the directory
         """
-        returns the path to store a matplotlib figure in
-        """
-        return self.files_path
+
+        distrib_dir = os.path.join(self.files_path, f"distributions")
+        os.makedirs(distrib_dir, exist_ok=True)
+        return distrib_dir
 
     def save_state_dict(self, state_dict, training_seed, data_dist_seed, step):
         """
@@ -396,9 +405,9 @@ class ParamsManager(object):
         return self._parameter_to_use(default, read)
     
     
-    def get_plot_worker_distributions(self):
+    def get_save_worker_distributions(self):
         default = False
-        path = ["evaluation_and_results", "plot_worker_distributions"]
+        path = ["evaluation_and_results", "save_worker_distributions"]
         read = self._read_object(path)
         return self._parameter_to_use(default, read)
     

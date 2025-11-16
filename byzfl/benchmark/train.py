@@ -9,7 +9,7 @@ from torchvision import datasets, transforms
 from byzfl import Client, Server, ByzantineClient, DataDistributor, PoisoningClient
 from byzfl.utils.misc import set_random_seed, max_distance_to_gradient
 from byzfl.benchmark.managers import ParamsManager, FileManager
-from byzfl.benchmark.evaluate_results import plot_worker_class_distribution
+from byzfl.benchmark.evaluate_results import plot_worker_class_distribution, compute_exclusivity
 
 transforms_hflip = transforms.Compose([transforms.RandomHorizontalFlip(), transforms.ToTensor()])
 transforms_mnist = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
@@ -190,10 +190,21 @@ def start_training(params):
         ) for i in range(nb_byz_clients)
     ]
     
-    if params_manager.get_plot_worker_distributions():
-        path_plot_distribution = file_manager.write_plot_in_file_path()
-        plot_worker_class_distribution(honest_clients+poisonned_clients, path_plot_distribution,params_manager.get_nb_labels(), params_manager.get_name_data_distribution(), dd_seed)
+    if params_manager.get_save_worker_distributions():
+        path_plot_distribution=file_manager.make_distribution_dir()
+        partitions = plot_worker_class_distribution(honest_clients+poisonned_clients, path_plot_distribution,params_manager.get_nb_labels(), params_manager.get_name_data_distribution(), dd_seed)
         
+        #save the per class per worker partition data
+        partition_file_name=f"distributions/worker_distributions_dd_seed_{dd_seed}.txt"
+        file_manager.write_matrix_in_file(partitions,partition_file_name)
+        
+        #save the main exclusivity measure:
+        exlcusivity_file_name=f"distributions/exclusivity_dd_seed_{dd_seed}.txt"
+        exclusivity_measures = compute_exclusivity(partitions)
+        file_manager.write_matrix_in_file(exclusivity_measures,exlcusivity_file_name)
+
+        
+
 
 
     set_random_seed(training_seed)
