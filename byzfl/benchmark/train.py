@@ -6,8 +6,8 @@ from torch import Tensor
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
 
-from byzfl import Client, Server, ByzantineClient, DataDistributor, PoisoningClient
-from byzfl.utils.misc import set_random_seed, max_distance_to_gradient
+from byzfl import Client, Server, DataDistributor, PoisoningClient
+from byzfl.utils.misc import max_distance_to_gradient, set_random_seed, unflatten_dict
 from byzfl.benchmark.managers import ParamsManager, FileManager
 from byzfl.benchmark.evaluate_results import plot_worker_class_distribution
 
@@ -385,8 +385,7 @@ def start_training(params):
                     honest_gradients_for_scattering = [client.get_flat_gradients() for client in honest_clients]
                     poisonned_gradients_for_scattering = [client.get_flat_gradients() for client in poisonned_clients]
                     
-                # Compute the gradient
-                gradients = honest_gradients + poisonned_gradients
+                # Compute the average honest gradient
                 gradient = torch.stack(honest_gradients).mean(dim = 0)
 
                 # Evaluate honest gradients scatterings
@@ -407,9 +406,11 @@ def start_training(params):
                 for i in range(nb_honest_clients + nb_byz_clients):
                     feature_variance_dict[i] = feature_variance[i]
 
-            # Combine Honest and poisonned models
-            clients = honest_clients + poisonned_clients
-            server.update_model_with_models([client.model for client in clients], server.model)
+            # Combine all of the gradients
+            gradients = honest_gradients + poisonned_gradients
+            # Convert the gradients (with momentum) into state dicts
+            gradients = [unflatten_dict(gradient, server.model) for gradient in gradients]
+            server.update_model_with_dict_gradients(gradients)
 
         else:
             raise ValueError(f"Training algorithm {training_algorithm_name} not supported")

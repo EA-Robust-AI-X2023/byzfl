@@ -693,33 +693,20 @@ class Lfighter(object):
 
         return ds0, ds1
     
-    def average_weights(self, w: list, marks: list):
+    def average_gradients(self, gradients: list[dict], marks: list[float]) -> dict:
         """Return the weighted average of a list of state dicts."""
         total_marks = sum(marks)
         norm_marks = [m / total_marks for m in marks]
 
-        avg = copy.deepcopy(w[0])
+        avg = copy.deepcopy(gradients[0])
         for key in avg.keys():
-            avg[key] = sum(state_dict[key] * m for state_dict, m in zip(w, norm_marks))
+            avg[key] = sum(state_dict[key] * m for state_dict, m in zip(gradients, norm_marks))
 
         return avg
 
-    def __call__(self, local_models, global_model):
-        local_weights = [copy.deepcopy(model).state_dict() for model in local_models]
-
-        m = len(local_models)
-        for i in range(m):
-            local_models[i] = list(local_models[i].parameters())
-        global_model = list(global_model.parameters())
-        
-        dw = np.array([
-            global_model[i][-2].numpy(force=True) - local_models[i][-2].numpy(force=True)
-            for i in range(m)
-        ])
-        db = np.array([
-            global_model[i][-1].numpy(force=True) - local_models[i][-1].numpy(force=True)
-            for i in range(m)
-        ])
+    def __call__(self, local_gradients: list[dict]) -> dict:
+        dw = np.array([grad[-2].numpy(force=True) for grad in local_gradients])
+        db = np.array([grad[-1].numpy(force=True) for grad in local_gradients])
 
         norms = np.linalg.norm(dw, axis = -1)
         agg_norm = np.sum(norms, axis = 0)
@@ -727,8 +714,8 @@ class Lfighter(object):
         max_two_freq_classes = agg_norm.argsort()[-2:]
         
         data = [
-            dw[i][max_two_freq_classes].reshape(-1)
-            for i in range(m)
+            dw_i[max_two_freq_classes].reshape(-1)
+            for dw_i in dw
         ]
         kmeans = KMeans(n_clusters=2, random_state=0).fit(data)
         labels = kmeans.labels_
@@ -741,8 +728,8 @@ class Lfighter(object):
         good_cluster = 1 if cs0 < cs1 else 0
 
         scores = np.where(labels == good_cluster, 1.0, 0.0)     
-        global_weights = self.average_weights(local_weights, scores)
-        return global_weights
+        global_gradient = self.average_gradients(local_gradients, scores)
+        return global_gradient
     
 
 class Faba(object):

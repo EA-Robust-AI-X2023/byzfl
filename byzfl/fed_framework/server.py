@@ -2,6 +2,7 @@ from loguru import logger
 import torch
 
 from byzfl.fed_framework import ModelBaseInterface, RobustAggregator
+from byzfl.utils.conversion import flatten_dict
 
 class Server(ModelBaseInterface):
     
@@ -81,27 +82,26 @@ class Server(ModelBaseInterface):
         aggregate_weights = self.aggregate(weights)
         self.set_parameters(aggregate_weights)
 
-    def update_model_with_models(self, models, global_model):
+    def update_model_with_dict_gradients(self, gradients):
         """
         Description
         -----------
-        Updates the global model by aggregating the provided models (adapted to Lfighter aggregator)
+        Updates the global model by aggregating the provided gradients and performing
+        an optimization step to adjust model parameters.
 
         Parameters
         ----------
-        models : list
-            A list of models to aggregate and apply to the global model.
+        gradients : list
+            A list of gradients given as dicts to aggregate and apply to the global model.
+        
+        Notes
+        -----
+        This function assumes that the aggregator takes a list of dicts as an argument
+        and returns an aggregated gradient as a dict.
         """
-        # Aggregate directly with the custom signature. Assume no pre-aggregators.
-        aggregate_weights = self.robust_aggregator.aggregator(models, global_model)
-        # Some aggregators (e.g. Lfighter) return a state_dict (mapping of tensors),
-        # while others return a flat vector. Handle both cases.
-        if isinstance(aggregate_weights, dict):
-            # aggregator returned a state_dict-like object
-            self.set_model_state(aggregate_weights)
-        else:
-            # aggregator returned a flat vector/list/ndarray/tensor
-            self.set_parameters(aggregate_weights)
+        aggregate_gradient = self.aggregate(gradients)
+        self.set_gradients(flatten_dict(aggregate_gradient))
+        self._step()
 
     def _step(self):
         """
