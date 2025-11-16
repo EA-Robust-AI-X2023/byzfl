@@ -117,18 +117,18 @@ class FileManager:
         file_path = os.path.join(acc_dir, f"honest_gradients_scattering.txt")
         np.savetxt(file_path, honest_scattering_list, fmt="%.4f", delimiter=",")
 
-    def save_poisonned_scattering(self, poisonned_scattering_list, training_seed, data_dist_seed):
+    def save_poisoned_scattering(self, poisoned_scattering_list, training_seed, data_dist_seed):
         """
-        Save poisonned gradients scattering array for a specific seed value.
+        Save poisoned gradients scattering array for a specific seed value.
         """
         acc_dir = os.path.join(
             self.files_path,
-            f"poisonned_scattering_tr_seed_{training_seed}_dd_seed_{data_dist_seed}"
+            f"poisoned_scattering_tr_seed_{training_seed}_dd_seed_{data_dist_seed}"
         )
         os.makedirs(acc_dir, exist_ok=True)
 
-        file_path = os.path.join(acc_dir, f"poisonned_gradients_scattering.txt")
-        np.savetxt(file_path, poisonned_scattering_list, fmt="%.4f", delimiter=",")
+        file_path = os.path.join(acc_dir, f"poisoned_gradients_scattering.txt")
+        np.savetxt(file_path, poisoned_scattering_list, fmt="%.4f", delimiter=",")
 
     def save_mean_feature_norm(self, feature_mean, training_seed, data_dist_seed):
         """

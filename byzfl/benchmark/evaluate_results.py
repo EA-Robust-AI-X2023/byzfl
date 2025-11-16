@@ -1362,8 +1362,8 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
                                             path_scat_A= os.path.join(
                                                 path_to_results,
                                                 file_name,
-                                                f"poisonned_scattering_tr_seed_{training_seed}_dd_seed_{data_distribution_seed}",
-                                                f"poisonned_gradients_scattering.txt"
+                                                f"poisoned_scattering_tr_seed_{training_seed}_dd_seed_{data_distribution_seed}",
+                                                f"poisoned_gradients_scattering.txt"
                                             )
                                             tab_scat_ksi[i_attack,run_dd, run] = genfromtxt(path_scat_ksi)
                                             tab_scat_A[i_attack,run_dd, run] = genfromtxt(path_scat_A)
@@ -1440,7 +1440,7 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
 
 def plot_maximum_regular_feature_mean(path_to_results, path_to_plot):
     """
-    Plots the poisonned gradient scatterings for different configurations.
+    Plots the poisoned gradient scatterings for different configurations.
     """
     try:
         with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
@@ -1784,7 +1784,7 @@ def plot_workers_feature_variance(path_to_results, path_to_plot):
 
 def gradient_estimator_variance(path_to_results, path_to_plot):
     """
-    Plots the poisonned gradient scatterings for different configurations.
+    Plots the poisoned gradient scatterings for different configurations.
     """
 
     try:
