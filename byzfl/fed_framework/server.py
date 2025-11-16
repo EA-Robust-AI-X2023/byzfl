@@ -92,7 +92,8 @@ class Server(ModelBaseInterface):
         models : list
             A list of models to aggregate and apply to the global model.
         """
-        aggregate_weights = self.aggregate(models, global_model)
+        # Aggregate directly with the custom signature. Assume no pre-aggregators.
+        aggregate_weights = self.robust_aggregator.aggregator(models, global_model)
         # Some aggregators (e.g. Lfighter) return a state_dict (mapping of tensors),
         # while others return a flat vector. Handle both cases.
         if isinstance(aggregate_weights, dict):
