@@ -761,7 +761,7 @@ class Faba(object):
             mean = torch.mean(remain, dim=0, keepdim=True)
             distances = torch.norm(remain - mean, dim=1)
             remove_index = distances.argmax()
-            remain = remain[torch.arange(remain.size(0)) != remove_index]
+            remain = remain[torch.arange(remain.size(0), device=remain.device) != remove_index]
         
         return remain.mean(dim=0)
 
