@@ -1969,27 +1969,40 @@ def plot_worker_class_distribution(clients, path, num_classes, dist_name, dd_see
 
     colors = plt.cm.tab10.colors  
     
-    proportions = []
+    partitions = []
     for client in clients:
         subset = client.training_dataloader.dataset
         targets = np.array([subset.dataset.targets[idx] for idx in subset.indices])
         counts = Counter(targets)
         total = len(targets)
         prop = [counts.get(c, 0) for c in range(num_classes)]
-        proportions.append(prop)
-    proportions=np.array(proportions)
+        partitions.append(prop)
+    partitions=np.array(partitions, dtype=int)
     
     # Plot horizontal empilé
     left = np.zeros(nb_clients)
     plt.figure()
     for c in range(num_classes):
-        plt.barh(range(nb_clients), proportions[:, c], left=left,
+        plt.barh(range(nb_clients), partitions[:, c], left=left,
                 color=colors[c], label=f'Classe {c}')
-        left += proportions[:, c]
+        left += partitions[:, c]
 
     plt.legend()
     plt.yticks(range(nb_clients))
     plt.savefig(os.path.join(path,f"worker_distributions_dd_seed_{dd_seed}.png"), dpi=300)
     plt.close()
+    return partitions
+
+def compute_exclusivity(partitions):
+    """
+    computes the exclusivity measure of the partition
+
+    Args:
+        partition (np.array): (nb_worker, nb_classes) array
+    """
+
+    majority_classes = np.argmax(partitions, axis = 1) #for each client, we compute the class which is in majority
+    majority_shares= [partitions[i,majority_classes[i]] for i, partition  in enumerate(partitions)]/partitions.sum(axis=0)
+    return majority_shares
     
     
