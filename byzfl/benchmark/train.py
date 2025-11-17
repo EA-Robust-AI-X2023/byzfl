@@ -193,7 +193,7 @@ def start_training(params):
     
     if params_manager.get_save_worker_distributions():
         path_plot_distribution=file_manager.make_distribution_dir()
-        partitions = plot_worker_class_distribution(honest_clients+poisonned_clients, path_plot_distribution,params_manager.get_nb_labels(), params_manager.get_name_data_distribution(), dd_seed)
+        partitions = plot_worker_class_distribution(honest_clients+poisoned_clients, path_plot_distribution,params_manager.get_nb_labels(), params_manager.get_name_data_distribution(), dd_seed)
         
         #save the per class per worker partition data
         partition_file_name=f"distributions/worker_distributions_dd_seed_{dd_seed}.txt"
