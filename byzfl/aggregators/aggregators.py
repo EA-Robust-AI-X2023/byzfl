@@ -1,7 +1,9 @@
 import itertools
 import numpy as np
+from collections import OrderedDict
 import copy
 import torch
+from torch import Tensor
 from byzfl.utils.misc import check_vectors_type, distance_tool, shape, ones_vector, random_tool
 import sklearn.metrics.pairwise as smp
 from sklearn.cluster import KMeans
@@ -656,88 +658,110 @@ class MultiKrum(object):
     
 
 class Lfighter(object):
+    """Apply the LFighter aggregator.
 
-    r"""
-    Official implementation of LFighter aggregator from : 
-    https://www.sciencedirect.com/science/article/pii/S0893608023006421?ref=pdf_download&fr=RR-2&rr=994c922159722a07
-    """
-    def __init__(self, num_classes = 10):
-        self.memory = np.zeros([num_classes])
+    This defense is tailored against label flipping attacks. It applies a clustering
+    method on the gradients to filter out potential poisons.
     
-    def clusters_dissimilarity(self, clusters):
-        n0 = len(clusters[0])
-        n1 = len(clusters[1])
-        m = n0 + n1 
-        cs0 = smp.cosine_similarity(clusters[0]) - np.eye(n0)
-        cs1 = smp.cosine_similarity(clusters[1]) - np.eye(n1)
-        mincs0 = np.min(cs0, axis=1)
-        mincs1 = np.min(cs1, axis=1)
-        ds0 = n0/m * (1 - np.mean(mincs0))
-        ds1 = n1/m * (1 - np.mean(mincs1))
+    LFighter is suitable in non i.i.d federated learning settings [1]_.
+    
+    ## Notes       
+    
+    The implementation is based on https://github.com/najeebjebreel/LFighter,
+    but restricted to the multi-class setting.
+
+    ## References
+
+    .. [1] Najeeb Moharram Jebreel, Josep Domingo-Ferrer, David Sánchez and Alberto
+           Blanco-Justicia. Defending against the Label-flipping Attack in Federated
+           Learning. In arXiv, 2022.
+    """
+    
+    def clusters_dissimilarity(
+        self,
+        cluster_a: np.ndarray,
+        cluster_b: np.ndarray,
+    ) -> tuple[float, float]:
+        n0, n1 = len(cluster_a), len(cluster_b)
+        total = n0 + n1
+
+        def _cluster_score(cluster: np.ndarray, size: int) -> float:
+            sim_matrix = smp.cosine_similarity(cluster) - np.eye(size)
+            min_sim = np.min(sim_matrix, axis=1)
+            return (size / total) * (1.0 - np.mean(min_sim))
+
+        ds0 = _cluster_score(cluster_a, n0)
+        ds1 = _cluster_score(cluster_b, n1)
+
         return ds0, ds1
     
-    # Get average weights
-    def average_weights(self,w, marks):
+    def average_gradients(self, gradients: Tensor, scores: Tensor) -> Tensor:
+        """Return the weighted average of a list of state dicts."""
+        g = torch.stack(gradients)
+        s = scores.float().view(-1, *[1]*(g.dim()-1))
+        return (s * g).mean(0)
+
+    def get_scores(self, local_gradients: list[OrderedDict]) -> torch.Tensor:
+        """Identify label flipping by analyzing the gradients.
+        
+        Input parameters
+        ----------------
+        local_gradients: list[OrderedDict]
+            The local gradients without momentum, as ordered dicts of parameter gradients.
+            The last two parameters are assumed to be those of the linear output layer.
+            
+        Returns
+        -------
+        :torch.Tensor
+            Aggregation scores for each gradient. A score of `0.0` indicates a malicious gradient.
         """
-        Returns the average of the weights.
-        """
-        w_avg = copy.deepcopy(w[0])
-        for key in w_avg.keys():
-            w_avg[key] = w_avg[key] * marks[0]
-        for key in w_avg.keys():
-            for i in range(1, len(w)):
-                w_avg[key] += w[i][key] * marks[i]
-            w_avg[key] = w_avg[key] *(1/sum(marks))
-        return w_avg
+        local_gradients = [list(grad.values()) for grad in local_gradients]
+        dw = np.array([grad[-2].numpy(force=True) for grad in local_gradients])
+        db = np.array([grad[-1].numpy(force=True) for grad in local_gradients])
 
-    def __call__(self, local_models, global_model):
-
-        local_weights = [copy.deepcopy(model).state_dict() for model in local_models]
-        m = len(local_models)
-        for i in range(m):
-            local_models[i] = list(local_models[i].parameters())
-        dw = [None for _ in range(m)]
-        db = [None for _ in range(m)]
-        for i in range(m):
-            dw[i]= global_model[i][-2].cpu().data.numpy() - local_models[i][-2].cpu().data.numpy() 
-            db[i]= global_model[i][-2].cpu().data.numpy() - local_models[i][-1].cpu().data.numpy()
-        dw = np.asarray(dw)
-        db = np.asarray(db)
-
-        "All models we consider are multiclassification models"
-        norms = np.linalg.norm(dw, axis = -1) 
-        self.memory = np.sum(norms, axis = 0)
-        self.memory +=np.sum(abs(db), axis = 0)
-        max_two_freq_classes = self.memory.argsort()[-2:]
-        data = []
-        for i in range(m):
-            data.append(dw[i][max_two_freq_classes].reshape(-1))
-
+        norms = np.linalg.norm(dw, axis = -1)
+        agg_norm = np.sum(norms, axis = 0)
+        agg_norm += np.sum(abs(db), axis = 0)
+        max_two_freq_classes = agg_norm.argsort()[-2:]
+        
+        data = [
+            dw_i[max_two_freq_classes].reshape(-1)
+            for dw_i in dw
+        ]
         kmeans = KMeans(n_clusters=2, random_state=0).fit(data)
         labels = kmeans.labels_
 
-        clusters = {0:[], 1:[]}
-        for i, l in enumerate(labels):
-          clusters[l].append(data[i])
+        clusters = {0: [], 1: []}
+        for i, label in enumerate(labels):
+          clusters[label].append(data[i])
 
-        good_cl = 0
-        cs0, cs1 = self.clusters_dissimilarity(clusters)
-        if cs0 < cs1:
-            good_cl = 1
-        scores = np.ones([m])
+        cs0, cs1 = self.clusters_dissimilarity(clusters[0], clusters[1])
+        good_cluster = 1 if cs0 < cs1 else 0
 
-        for i, l in enumerate(labels):
-            if l != good_cl:
-                scores[i] = 0
-            
-        global_weights = self.average_weights(local_weights, scores)
-        return global_weights
+        scores = np.where(labels == good_cluster, 1.0, 0.0)  
+        return torch.from_numpy(scores).to(local_gradients[0][0].device)
+        
+    
+    def __call__(self, vectors):
+        raise NotImplementedError(
+            "The LFighter aggregator works in two steps. "
+            "Call `self.get_scores()` on the local gradients without momentum, "
+            "then compute the aggregate via `self.average_gradients()`"
+        )
     
 
 class Faba(object):
+    """
+    Apply the FABA aggregator.
 
-    r"""
-    Pend & al implementation of FABA aggregator, change if needed
+    This algorithm iteratively removes outliers and computes the mean of the resulting
+    vectors [1]_.
+
+    ## References
+
+    .. [1] Qi Xia, Zeyi Tao, Zijiang Hao, Qun Li. FABA: An Algorithm for Fast Aggregation
+           against Byzantine Attacks in Distributed Neural Networks. In International
+           Joint Conference on Artificial Intelligence, pp. 4824-4830. IJCAI, 2019.
     """
 
     def __init__(self, f=0):
@@ -750,12 +774,10 @@ class Faba(object):
 
         for _ in range(self.f):
             if not torch.is_tensor(remain):
-                remain=torch.stack(remain)
-            mean = torch.mean(remain, dim=0)
-            # remove the largest 'byzantine_size' model
-            distances = torch.tensor([
-                torch.norm(model - mean) for model in remain
-            ])
+                remain = torch.stack(remain)
+            
+            mean = torch.mean(remain, dim=0, keepdim=True)
+            distances = torch.norm(remain - mean, dim=1)
             remove_index = distances.argmax()
             remain = remain[torch.arange(remain.size(0), device=remain.device) != remove_index]
         return remain.mean(dim=0)

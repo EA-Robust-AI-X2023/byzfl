@@ -1,6 +1,8 @@
 import os
-import pytest
 import glob
+
+from loguru import logger
+import pytest
 
 def find_test_files():
     paths = ['.', './tests']
@@ -13,7 +15,7 @@ def find_test_files():
 if __name__ == '__main__':
     test_files = find_test_files()
     if not test_files:
-        print("No unit test files found.")
+        logger.critical("No unit test files found.")
     else:
-        print(f"Running tests from: {test_files}")
+        logger.info(f"Running tests from: {test_files}")
         pytest.main(test_files)
