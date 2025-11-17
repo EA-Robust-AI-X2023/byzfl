@@ -7,7 +7,8 @@ from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
 
 from byzfl import Client, Server, DataDistributor, PoisoningClient
-from byzfl.utils.misc import max_distance_to_gradient, set_random_seed, unflatten_dict
+from byzfl.utils.misc import max_distance_to_gradient, set_random_seed
+from byzfl.utils.conversion import unflatten_dict
 from byzfl.benchmark.managers import ParamsManager, FileManager
 from byzfl.benchmark.evaluate_results import plot_worker_class_distribution
 
