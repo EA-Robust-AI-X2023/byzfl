@@ -199,10 +199,11 @@ class DataDistributor:
         
         aux_idx = [idx[np.where(targets[idx] == k)[0]] for k in classes] #stores indices corresponding to each class
 
+        random_decalage=random.randint(0,self.nb_workers-1)
         if c>= self.nb_workers: #more classes than clients: some clients have multiple classes.
             partition = [np.array([], dtype=int) for _ in range(self.nb_workers)]
             for idx_target in class_idx_dict.values():
-                node_idx = idx_target % self.nb_workers
+                node_idx = (idx_target+random_decalage) % self.nb_workers
                 partition[node_idx]=np.append(partition[node_idx],aux_idx[idx_target])
             return partition
         
