@@ -407,11 +407,19 @@ def start_training(params):
                 for i in range(nb_honest_clients + nb_byz_clients):
                     feature_variance_dict[i] = feature_variance[i]
 
-            # Combine all of the gradients
-            gradients = honest_gradients + poisoned_gradients
-            # Convert the gradients (with momentum) into state dicts
-            gradients = [unflatten_dict(gradient, server.model) for gradient in gradients]
-            server.update_model_with_dict_gradients(gradients)
+            clients = honest_clients + poisoned_clients
+            # Get the local gradients without momentum for LFighter
+            gradients = [client.get_dict_gradients() for client in clients]
+
+            # Identify the malicious gradients
+            lfighter = server.robust_aggregator.aggregator
+            scores = lfighter.get_scores(gradients)
+            gradients_with_momentum = clients.get_flat_gradients_with_momentum()
+            
+            # Aggregate the gradients with momentum
+            aggregate_gradient = lfighter.average_gradients(gradients_with_momentum, scores)
+            server.set_gradients(aggregate_gradient)
+            server._step()
 
         else:
             raise ValueError(f"Training algorithm {training_algorithm_name} not supported")

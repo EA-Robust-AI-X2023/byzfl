@@ -1,7 +1,9 @@
 import itertools
 import numpy as np
+from collections import OrderedDict
 import copy
 import torch
+from torch import Tensor
 from byzfl.utils.misc import check_vectors_type, distance_tool, shape, ones_vector, random_tool
 import sklearn.metrics.pairwise as smp
 from sklearn.cluster import KMeans
@@ -693,18 +695,25 @@ class Lfighter(object):
 
         return ds0, ds1
     
-    def average_gradients(self, gradients: list[dict], marks: list[float]) -> dict:
+    def average_gradients(self, gradients: Tensor, scores: Tensor) -> Tensor:
         """Return the weighted average of a list of state dicts."""
-        total_marks = sum(marks)
-        norm_marks = [m / total_marks for m in marks]
+        return (scores * gradients).mean(dim=0)
 
-        avg = copy.deepcopy(gradients[0])
-        for key in avg.keys():
-            avg[key] = sum(state_dict[key] * m for state_dict, m in zip(gradients, norm_marks))
-
-        return avg
-
-    def __call__(self, local_gradients: list[dict]) -> dict:
+    def get_scores(self, local_gradients: list[OrderedDict]) -> torch.Tensor:
+        """Identify label flipping by analyzing the gradients.
+        
+        Input parameters
+        ----------------
+        local_gradients: list[OrderedDict]
+            The local gradients without momentum, as ordered dicts of parameter gradients.
+            The last two parameters are assumed to be those of the linear output layer.
+            
+        Returns
+        -------
+        :torch.Tensor
+            Aggregation scores for each gradient. A score of `0.0` indicates a malicious gradient.
+        """
+        local_gradients = [list(grad.values()) for grad in local_gradients]
         dw = np.array([grad[-2].numpy(force=True) for grad in local_gradients])
         db = np.array([grad[-1].numpy(force=True) for grad in local_gradients])
 
@@ -727,9 +736,16 @@ class Lfighter(object):
         cs0, cs1 = self.clusters_dissimilarity(clusters[0], clusters[1])
         good_cluster = 1 if cs0 < cs1 else 0
 
-        scores = np.where(labels == good_cluster, 1.0, 0.0)     
-        global_gradient = self.average_gradients(local_gradients, scores)
-        return global_gradient
+        scores = np.where(labels == good_cluster, 1.0, 0.0)  
+        return torch.from_numpy(scores).to(local_gradients[0][0].device)
+        
+    
+    def __call__(self, vectors):
+        raise NotImplementedError(
+            "The LFighter aggregator works in two steps. "
+            "Call `self.get_scores()` on the local gradients without momentum, "
+            "then compute the aggregate via `self.average_gradients()`"
+        )
     
 
 class Faba(object):
