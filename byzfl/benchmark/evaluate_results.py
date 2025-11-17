@@ -2004,4 +2004,210 @@ def compute_exclusivity(partitions):
     majority_shares= [partitions[i,majority_classes[i]] for i, partition  in enumerate(partitions)]/partitions.sum(axis=0)
     return majority_shares
     
+def evaluate_impact_exclusivity(path_to_results, path_to_plot, colors=colors, tab_sign=tab_sign, markers=markers):
+    """
+    This script plots accuracy performance against exclusivity of the data held by the byzantine worker
+    """
     
+    try:
+        with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
+            data = json.load(file)
+    except Exception as e:
+        print(f"ERROR reading config.json: {e}")
+        return
+    
+    try:
+        os.makedirs(path_to_plot, exist_ok=True)
+    except OSError as error:
+        print(f"Error creating directory: {error}")
+    
+    path_to_hyperparameters = path_to_results + "/best_hyperparameters"
+    
+
+    # <-------------- Benchmark Config ------------->
+    training_seed = data["benchmark_config"]["training_seed"]
+    nb_training_seeds = data["benchmark_config"]["nb_training_seeds"]
+    nb_honest_clients = data["benchmark_config"]["nb_honest_clients"]
+    nb_byz = data["benchmark_config"]["f"]
+    nb_declared = data["benchmark_config"].get("tolerated_f", None)
+    data_distribution_seed = data["benchmark_config"]["data_distribution_seed"]
+    nb_data_distribution_seeds = data["benchmark_config"]["nb_data_distribution_seeds"]
+    data_distributions = data["benchmark_config"]["data_distribution"]
+    set_honest_clients_as_clients = data["benchmark_config"]["set_honest_clients_as_clients"]
+    nb_steps = data["benchmark_config"]["nb_steps"]
+
+
+    # <-------------- Evaluation and Results ------------->
+    evaluation_delta = data["evaluation_and_results"]["evaluation_delta"]
+
+    # <-------------- Model Config ------------->
+    model_name = data["model"]["name"]
+    dataset_name = data["model"]["dataset_name"]
+    lr_list = data["model"]["learning_rate"]
+    nb_labels= data["model"]["nb_labels"]
+
+    # <-------------- Honest Nodes Config ------------->
+    momentum_list = data["honest_clients"]["momentum"]
+    wd_list = data["honest_clients"]["weight_decay"]
+
+    # <-------------- Aggregators Config ------------->
+    aggregators = data["aggregator"]
+    pre_aggregators = data["pre_aggregators"]
+
+    # <-------------- Attacks Config ------------->
+    attacks = data["attack"]
+
+    # Ensure certain configurations are always lists
+    nb_honest_clients = ensure_list(nb_honest_clients)
+    nb_byz = ensure_list(nb_byz)
+    nb_declared = ensure_list(nb_declared)
+    data_distributions = ensure_list(data_distributions)
+    aggregators = ensure_list(aggregators)
+
+    # Pre-aggregators can be multiple or single dict; unify them
+    if not pre_aggregators or isinstance(pre_aggregators[0], dict):
+        pre_aggregators = [pre_aggregators]
+
+    attacks = ensure_list(attacks)
+    lr_list = ensure_list(lr_list)
+    momentum_list = ensure_list(momentum_list)
+    wd_list = ensure_list(wd_list)
+
+    nb_accuracies = int(1+math.ceil(nb_steps/evaluation_delta))
+
+    for nb_honest in nb_honest_clients:
+        for nb_byzantine in nb_byz:
+
+            if nb_declared[0] is None:
+                nb_declared_list = [nb_byzantine]
+            else:
+                nb_declared_list = nb_declared.copy()
+                nb_declared_list = [item for item in nb_declared_list if item >= nb_byzantine]
+            
+            for nb_decl in nb_declared_list:
+
+                if set_honest_clients_as_clients:
+                    nb_nodes = nb_honest
+                else:
+                    nb_nodes = nb_honest + nb_byzantine
+                
+                for data_dist in data_distributions:
+                    dist_parameter_list = data_dist["distribution_parameter"]
+                    dist_parameter_list = ensure_list(dist_parameter_list)
+                    for dist_parameter in dist_parameter_list:
+                        for pre_agg in pre_aggregators:
+                            pre_agg_list_names = [one_pre_agg['name'] for one_pre_agg in pre_agg]
+                            pre_agg_names = "_".join(pre_agg_list_names)
+                            
+                            fig, axes = plt.subplots(1,len(attacks), figsize=(5*len(attacks),5), sharey=True)
+                            fig.suptitle(f"Accuracy paths, distribution: {data_dist['name']}_{str(dist_parameter)}", fontsize=14)
+
+                            for i_agg, agg in enumerate(aggregators):
+
+                                hyper_file_name = (
+                                f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
+                                f"{custom_dict_to_str(data_dist['name'])}_{dist_parameter}_{pre_agg_names}_{agg['name']}.txt"
+                                )
+
+
+                                full_path = os.path.join(path_to_hyperparameters, "hyperparameters", hyper_file_name)
+
+                                if os.path.exists(full_path):
+                                    hyperparameters = np.loadtxt(full_path)
+                                    lr = hyperparameters[0]
+                                    momentum = hyperparameters[1]
+                                    wd = hyperparameters[2]
+                                else:
+                                    lr = lr_list[0]
+                                    momentum = momentum_list[0]
+                                    wd = wd_list[0]
+
+                                tab_acc = np.zeros((
+                                    len(attacks), 
+                                    nb_data_distribution_seeds,
+                                    nb_training_seeds,
+                                    nb_accuracies
+                                ))
+                                tab_distrib = np.zeros((
+                                    len(attacks), 
+                                    nb_data_distribution_seeds,
+                                    nb_honest+nb_byzantine,nb_labels
+                                ))
+
+                                for i, attack in enumerate(attacks):
+                                    file_name = (
+                                                f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_"
+                                                f"d_{nb_decl}_{custom_dict_to_str(data_dist['name'])}_"
+                                                f"{dist_parameter}_{custom_dict_to_str(agg['name'])}_"
+                                                f"{pre_agg_names}_{custom_dict_to_str(attack['name'])}_"
+                                                f"lr_{lr}_mom_{momentum}_wd_{wd}"
+                                            )
+                                    for run_dd in range(nb_data_distribution_seeds):
+                                        
+                                        exclusivity_path = os.path.join(
+                                                path_to_results,
+                                                file_name,
+                                                f"distributions/worker_distributions_dd_seed_{run_dd + data_distribution_seed}.txt"
+                                            )
+                                        tab_distrib[i, run_dd] = genfromtxt(exclusivity_path, delimiter=',')
+
+                                        for run in range(nb_training_seeds):
+                                            
+                                            acc_path = os.path.join(
+                                                path_to_results,
+                                                file_name,
+                                                f"test_accuracy_tr_seed_{run + training_seed}"
+                                                f"_dd_seed_{run_dd + data_distribution_seed}.txt"
+                                            )
+                                            tab_acc[i, run_dd, run] = genfromtxt(acc_path, delimiter=',')
+                                            
+                                            
+
+                                # tab_acc = tab_acc.reshape(
+                                #     len(attacks),
+                                #     nb_data_distribution_seeds * nb_training_seeds,
+                                #     nb_accuracies
+                                # )
+                                
+                                # err = np.zeros((len(attacks), nb_accuracies))
+                                # for i in range(len(err)):
+                                #     err[i] = (1.96*np.std(tab_acc[i], axis = 0))/math.sqrt(nb_training_seeds*nb_data_distribution_seeds)
+                                
+                                plt.rcParams.update({'font.size': 12})
+                                
+                                
+                                
+                                for i, attack in enumerate(attacks):
+                                    attack = attack["name"]
+                                    ax = axes[i] if isinstance(axes, np.ndarray) else axes
+                                    
+                                    #calculate exclusivity:
+                                    exclusivity=[]
+                                    max_accuracy=[]
+                                    for seed_i, distrib_seed in enumerate(tab_distrib[i]):
+                                        majority_class= np.argmax(distrib_seed[nb_honest]) #nb_honest is the index of the byzantine worker
+                                        print("argmax: ", majority_class)
+                                        print("majority_class :", distrib_seed[:,majority_class])
+                                        exclusivity.append(distrib_seed[nb_honest][majority_class]/distrib_seed[:,majority_class].sum())
+                                        max_accuracy.append(np.max(tab_acc[i][seed_i]))
+                                        
+                                    
+                                    ax.scatter(exclusivity,max_accuracy,marker= markers[i_agg],color=colors[i_agg], label=agg["name"]+str(dist_parameter) )
+                                    ax.set_title(f"{attack} attack", fontsize=10)
+                                    ax.grid()
+                                    ax.legend()
+                                    ax.set_xlabel('Exclusivity of byzantine data')
+                                    ax.set_ylabel('Maximal accuracy')
+
+                            plt.tight_layout()
+
+                            plot_name = (
+                                f"exclusivity_study_"
+                                f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
+                                f"{custom_dict_to_str(data_dist['name'])}_{dist_parameter}_"
+                                f"{pre_agg_names}_lr_{lr}_mom_{momentum}_wd_{wd}"
+                            )
+                            
+                            plt.savefig(path_to_plot+"/"+plot_name+'_plot.pdf')
+                            plt.close()
+
