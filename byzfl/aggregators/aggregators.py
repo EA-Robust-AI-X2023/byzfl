@@ -697,7 +697,9 @@ class Lfighter(object):
     
     def average_gradients(self, gradients: Tensor, scores: Tensor) -> Tensor:
         """Return the weighted average of a list of state dicts."""
-        return (scores * gradients).mean(dim=0)
+        g = torch.stack(gradients)
+        s = scores.float().view(-1, *[1]*(g.dim()-1))
+        return (s * g).mean(0)
 
     def get_scores(self, local_gradients: list[OrderedDict]) -> torch.Tensor:
         """Identify label flipping by analyzing the gradients.
