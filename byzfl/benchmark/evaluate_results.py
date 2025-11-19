@@ -2001,9 +2001,12 @@ def compute_exclusivity(partitions):
         partition (np.array): (nb_worker, nb_classes) array
     """
 
-    majority_classes = np.argmax(partitions, axis = 1) #for each client, we compute the class which is in majority
-    majority_shares= [partitions[i,majority_classes[i]] for i, partition  in enumerate(partitions)]/partitions.sum(axis=0)
-    return majority_shares
+    exclusivity=[]
+    for client_distrib in partitions:
+        majority_class= np.argmax(client_distrib) #nb_honest is the index of the byzantine worker
+        exclusivity.append(client_distrib[majority_class]/partitions[:,majority_class].sum())
+    return exclusivity                                        
+    
     
 def evaluate_impact_exclusivity(path_to_results, path_to_plot, colors=colors, tab_sign=tab_sign, markers=markers):
     """
@@ -2101,7 +2104,7 @@ def evaluate_impact_exclusivity(path_to_results, path_to_plot, colors=colors, ta
                             pre_agg_names = "_".join(pre_agg_list_names)
                             
                             fig, axes = plt.subplots(1,len(attacks), figsize=(5*len(attacks),5), sharey=True)
-                            fig.suptitle(f"Accuracy paths, distribution: {data_dist['name']}_{str(dist_parameter)}", fontsize=14)
+                            fig.suptitle(f"{data_dist['name']}, {str(dist_parameter)}", fontsize=12)
 
                             for i_agg, agg in enumerate(aggregators):
 
@@ -2187,13 +2190,19 @@ def evaluate_impact_exclusivity(path_to_results, path_to_plot, colors=colors, ta
                                     max_accuracy=[]
                                     for seed_i, distrib_seed in enumerate(tab_distrib[i]):
                                         majority_class= np.argmax(distrib_seed[nb_honest]) #nb_honest is the index of the byzantine worker
-                                        print("argmax: ", majority_class)
-                                        print("majority_class :", distrib_seed[:,majority_class])
                                         exclusivity.append(distrib_seed[nb_honest][majority_class]/distrib_seed[:,majority_class].sum())
                                         max_accuracy.append(np.max(tab_acc[i][seed_i]))
                                         
+                                    if agg['name'] == "Average":
+                                        col = (0.635, 0.078, 0.184) #dark red
+                                        mark= 'o'
+                                        a=1.0
+                                    else:
+                                        col=(0.000, 0.447, 0.741)  # blue
+                                        mark= markers[i_agg]
+                                        a=0.6
                                     
-                                    ax.scatter(exclusivity,max_accuracy,marker= markers[i_agg],color=colors[i_agg], label=agg["name"]+str(dist_parameter) )
+                                    ax.scatter(exclusivity,max_accuracy,marker= mark,color=col, label=agg["name"], alpha=a)
                                     ax.set_title(f"{attack} attack", fontsize=10)
                                     ax.grid()
                                     ax.legend()
