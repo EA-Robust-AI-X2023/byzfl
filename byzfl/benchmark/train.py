@@ -190,6 +190,7 @@ def start_training(params):
             attack_parameters,
         ) for i in range(nb_byz_clients)
     ]
+    clients = honest_clients+poisoned_clients
     
     if params_manager.get_save_worker_distributions():
         path_plot_distribution=file_manager.make_distribution_dir()
@@ -437,7 +438,7 @@ def start_training(params):
         
         # Send Updated Model to Clients
         new_model = server.get_dict_parameters()
-        for client in honest_clients:
+        for client in clients:
             client.set_model_state(new_model)
     
     end_time = time.time()

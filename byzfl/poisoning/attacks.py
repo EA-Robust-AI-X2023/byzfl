@@ -96,13 +96,13 @@ class DynamicLabelFlipping(object):
         return inputs, flipped_targets
     
     
-    class NoAttack(object):
-        """
-        Description
-        -----------
+class NoAttack(object):
+    """
+    Description
+    -----------
 
-        No attack is applied, and the original inputs and targets are returned.
-        """
-        def __call__(self, model, inputs, targets):
-            return inputs, targets
-  
+    No attack is applied, and the original inputs and targets are returned.
+    """
+    def __call__(self, model, inputs, targets):
+        return inputs, targets
+    
