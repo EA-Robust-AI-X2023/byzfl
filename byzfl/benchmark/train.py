@@ -394,7 +394,7 @@ def start_training(params):
 
     if store_per_client_metrics:
 
-        for client_id, client in enumerate(honest_clients):
+        for client_id, client in enumerate(clients):
             loss = client.get_loss_list()
             acc = client.get_train_accuracy()
             
