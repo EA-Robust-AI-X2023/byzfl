@@ -1,16 +1,16 @@
 import time
 
 import numpy as np
-import torch
 from torch import Tensor
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
 
 from byzfl import Client, Server, DataDistributor, PoisoningClient
-from byzfl.utils.misc import max_distance_to_gradient, set_random_seed
-from byzfl.utils.conversion import unflatten_dict
+from byzfl.utils.misc import set_random_seed
 from byzfl.benchmark.managers import ParamsManager, FileManager
 from byzfl.benchmark.evaluate_results import plot_worker_class_distribution, compute_exclusivity
+
+from byzfl.benchmark.measures import compute_scatterings
 
 transforms_hflip = transforms.Compose([transforms.RandomHorizontalFlip(), transforms.ToTensor()])
 transforms_mnist = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
@@ -194,7 +194,7 @@ def start_training(params):
     
     if params_manager.get_save_worker_distributions():
         path_plot_distribution=file_manager.make_distribution_dir()
-        partitions = plot_worker_class_distribution(honest_clients+poisoned_clients, path_plot_distribution,params_manager.get_nb_labels(), params_manager.get_name_data_distribution(), dd_seed)
+        partitions = plot_worker_class_distribution(clients, path_plot_distribution,params_manager.get_nb_labels(), params_manager.get_name_data_distribution(), dd_seed)
         
         #save the per class per worker partition data
         partition_file_name=f"distributions/worker_distributions_dd_seed_{dd_seed}.txt"
@@ -204,10 +204,6 @@ def start_training(params):
         exlcusivity_file_name=f"distributions/exclusivity_dd_seed_{dd_seed}.txt"
         exclusivity_measures = compute_exclusivity(partitions)
         file_manager.write_matrix_in_file(exclusivity_measures,exlcusivity_file_name)
-
-        
-
-
 
     set_random_seed(training_seed)
 
@@ -226,6 +222,7 @@ def start_training(params):
     test_accuracy_list = np.array([])
     train_loss_list = np.zeros((nb_training_steps))
 
+    #measures for our experiences (optional)
     honest_scattering_list = np.array([])
     poisoned_scattering_list = np.array([])
     feature_mean = np.array([])
@@ -292,13 +289,12 @@ def start_training(params):
             if make_feature_measures:
                 make_feature_measures_step=True
         
-        if training_algorithm_name == "DSGD" and params_manager.get_aggregator_name() != "Lfighter":
+        if training_algorithm_name == "DSGD":
 
             train_loss_per_client = np.zeros((nb_honest_clients+ nb_byz_clients))
             mean_feature = np.zeros((nb_honest_clients+ nb_byz_clients))
             gradient_variances = np.zeros((nb_honest_clients + nb_byz_clients))
             feature_variance= np.zeros((nb_honest_clients + nb_byz_clients))
-
 
             # Honest Clients Compute Gradients
             for i, client in enumerate(honest_clients):
@@ -322,34 +318,29 @@ def start_training(params):
 
             poisoned_gradients_with_momentum = [client.get_flat_gradients_with_momentum() for client in poisoned_clients]
             
-            # Combine Honest and poisoned Gradients
-            gradients_with_momentum = honest_gradients_with_momentum + poisoned_gradients_with_momentum
+            gradients_with_momentum = honest_gradients_with_momentum+poisoned_gradients_with_momentum
+            
+            if "Lfighter" in params_manager.get_aggregator_name():   
+                # Get the local gradients without momentum for LFighter
+                raw_gradients = [client.get_dict_gradients() for client in clients]
 
-            # Update Global Model
-            server.update_model_with_gradients(gradients_with_momentum)
+                # Identify the malicious gradients
+                lfighter = server.robust_aggregator.aggregator
+                scores = lfighter.get_scores(raw_gradients)
+                
+                # Aggregate the gradients with momentum
+                aggregate_gradient = lfighter.average_gradients(gradients_with_momentum, scores)
+                
+                server.set_gradients(aggregate_gradient)
+                server._step()
+                
+            else:
+                # Update Global Model
+                server.update_model_with_gradients(gradients_with_momentum)
             
             if compute_gradient_scatterings_step:
-                #we are interested in the scatterings of honest and byzantine gradients whithout the momentum term
-                
-                if scatter_momentums: #default is false
-                    honest_gradients_for_scattering = honest_gradients_with_momentum
-                    poisoned_gradients_for_scattering = poisoned_gradients_with_momentum
-                    gradient = torch.stack(honest_gradients_with_momentum).mean(dim = 0)
-                else:
-                    honest_gradients_for_scattering = [client.get_flat_gradients() for client in honest_clients]
-                    poisoned_gradients_for_scattering = [client.get_flat_gradients() for client in poisoned_clients]
-                    gradient = torch.stack(honest_gradients_for_scattering).mean(dim = 0)
-
-                # Evaluate honest gradients scatterings
-                max_dist_gradient_honest= max_distance_to_gradient(honest_gradients_for_scattering, gradient)
-                if isinstance(max_dist_gradient_honest, torch.Tensor):
-                    max_dist_gradient_honest = max_dist_gradient_honest.detach().cpu().item()
+                max_dist_gradient_honest, max_dist_gradient_poisoned = compute_scatterings(honest_clients, poisoned_clients, honest_gradients_with_momentum, poisoned_gradients_with_momentum, scatter_momentums)
                 honest_scattering_list=np.append(honest_scattering_list, max_dist_gradient_honest)
-
-                # Evaluate poisoned gradients scatterings
-                max_dist_gradient_poisoned= max_distance_to_gradient(poisoned_gradients_for_scattering, gradient)
-                if isinstance(max_dist_gradient_poisoned, torch.Tensor):
-                    max_dist_gradient_poisoned = max_dist_gradient_poisoned.detach().cpu().item()
                 poisoned_scattering_list=np.append(poisoned_scattering_list,max_dist_gradient_poisoned)
 
             if make_feature_measures_step:
@@ -358,80 +349,6 @@ def start_training(params):
 
             if compute_gradient_variance_step:
                 gradient_variance=np.append(gradient_variance, gradient_variances.max())
-
-
-        elif params_manager.get_aggregator_name() == "Lfighter":
-
-            train_loss_per_client = np.zeros((nb_honest_clients+ nb_byz_clients))
-            mean_feature = np.zeros((nb_honest_clients+ nb_byz_clients))
-            gradient_variances = np.zeros((nb_honest_clients + nb_byz_clients))
-            feature_variance=np.zeros((nb_honest_clients + nb_byz_clients))
-
-            # Honest Clients Compute Gradients
-            for i, client in enumerate(honest_clients):
-                (train_loss_per_client[i], 
-                mean_feature[i], 
-                feature_variance[i], 
-                gradient_variances[i]) = client.compute_gradients_and_update(make_feature_measures=make_feature_measures,compute_variance=compute_gradient_variance_step)
-                            
-            train_loss_list[training_step] = train_loss_per_client.mean()
-            
-            # Aggregate Honest Gradients
-            honest_gradients = [client.get_flat_gradients_with_momentum() for client in honest_clients]
-            
-            # Apply poisoning attack
-            for i, poisoned_client in enumerate(poisoned_clients):
-                (train_loss_per_client[i + nb_honest_clients], 
-                 mean_feature[i + nb_honest_clients],
-                feature_variance[i + nb_honest_clients], 
-                gradient_variances[i + nb_honest_clients]) = poisoned_client.compute_gradients_and_update(make_feature_measures=make_feature_measures, compute_variance=compute_gradient_variance_step)                
-            
-            poisoned_gradients = [client.get_flat_gradients_with_momentum() for client in poisoned_clients]
-
-            if compute_gradient_scatterings_step:
-                
-                #honest and byzantine gradients for scattering computations
-                honest_gradients_for_scattering = honest_gradients
-                poisoned_gradients_for_scattering = poisoned_gradients
-                
-                if scatter_momentums: #default is false
-                    honest_gradients_for_scattering = [client.get_flat_gradients() for client in honest_clients]
-                    poisoned_gradients_for_scattering = [client.get_flat_gradients() for client in poisoned_clients]
-                    
-                # Compute the average honest gradient
-                gradient = torch.stack(honest_gradients).mean(dim = 0)
-
-                # Evaluate honest gradients scatterings
-                max_dist_gradient_honest_cpu=max_distance_to_gradient(honest_gradients_for_scattering, gradient).cpu().item()
-                
-                honest_scattering_list=np.append(honest_scattering_list,max_dist_gradient_honest_cpu)
-
-                # Evaluate byzantine gradients scatterings
-                max_dist_gradient_poisoned_cpu=max_distance_to_gradient(poisoned_gradients_for_scattering, gradient).cpu().item()
-                poisoned_scattering_list=np.append(poisoned_scattering_list,max_dist_gradient_poisoned_cpu)
-
-            if compute_gradient_variance_step:
-                gradient_variance=np.append(gradient_variance, gradient_variances.max())
-
-            if make_feature_measures_step:
-                # Save features norm mean
-                feature_mean=np.append(feature_mean, mean_feature.max())
-                for i in range(nb_honest_clients + nb_byz_clients):
-                    feature_variance_dict[i] = feature_variance[i]
-
-            clients = honest_clients + poisoned_clients
-            # Get the local gradients without momentum for LFighter
-            raw_gradients = [client.get_dict_gradients() for client in clients]
-
-            # Identify the malicious gradients
-            lfighter = server.robust_aggregator.aggregator
-            scores = lfighter.get_scores(raw_gradients)
-            gradients_with_momentum = honest_gradients+poisoned_gradients
-            
-            # Aggregate the gradients with momentum
-            aggregate_gradient = lfighter.average_gradients(gradients_with_momentum, scores)
-            server.set_gradients(aggregate_gradient)
-            server._step()
 
         else:
             raise ValueError(f"Training algorithm {training_algorithm_name} not supported")
@@ -546,3 +463,5 @@ def start_training(params):
         "train_time_tr_seed_" + str(training_seed) 
         + "_dd_seed_" + str(dd_seed) +".txt"
     )
+    
+    
