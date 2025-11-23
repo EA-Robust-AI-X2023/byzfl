@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import collections
 
 from byzfl.fed_framework import ModelBaseInterface
 from byzfl.utils.conversion import flatten_dict
@@ -283,6 +284,25 @@ class Client(ModelBaseInterface):
             alpha=1 - self.momentum
         )
         return self.momentum_gradient
+    
+    def get_gradients_dict_with_momentum(self):
+        """
+        Description
+        -----------
+        !! flat gradients with momentum should be computed first
+        Computes the gradients with momentum applied and returns them as a dict
+
+        Returns
+        -------
+        collections.orderedDict
+        """
+        c = 0
+        new_dict = collections.OrderedDict()
+        for key, value in self.model.named_parameters():
+            nb_elements = torch.numel(value) 
+            new_dict[key] = self.momentum_gradient[c:c+nb_elements].view(value.shape)
+            c = c + nb_elements
+        return new_dict
 
     def get_loss_list(self):
         """

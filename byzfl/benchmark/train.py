@@ -321,12 +321,16 @@ def start_training(params):
             gradients_with_momentum = honest_gradients_with_momentum+poisoned_gradients_with_momentum
             
             if "Lfighter" in params_manager.get_aggregator_name():   
-                # Get the local gradients without momentum for LFighter
-                raw_gradients = [client.get_dict_gradients() for client in clients]
-
+                
+                #feed momentum or raw gradients ?
+                if params_manager.get_aggregator_gradient_choice(): #true if select momentum gradients
+                    lfighter_gradients = [client.get_gradients_dict_with_momentum() for client in clients]
+                else:
+                    lfighter_gradients = [client.get_dict_gradients() for client in clients]
+                
                 # Identify the malicious gradients
                 lfighter = server.robust_aggregator.aggregator
-                scores = lfighter.get_scores(raw_gradients)
+                scores = lfighter.get_scores(lfighter_gradients)
                 
                 # Aggregate the gradients with momentum
                 aggregate_gradient = lfighter.average_gradients(gradients_with_momentum, scores)

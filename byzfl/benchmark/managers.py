@@ -483,6 +483,13 @@ class ParamsManager(object):
         path = ["aggregator", "parameters"]
         read = self._read_object(path)
         return self._parameter_to_use(default, read)
+    
+    def get_aggregator_gradient_choice(self):
+        default = False
+        path = ["aggregator", "parameters", "momentum_gradients"]
+        read = self._read_object(path)
+        return self._parameter_to_use(default, read)
+        
 
     # ----------------------------------------------------------------------
     #  Pre-Aggregators
