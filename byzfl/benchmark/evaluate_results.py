@@ -232,9 +232,42 @@ def find_best_hyperparameters(path_to_results):
                                     step_val = np.array([real_steps[i, j]])
                                     np.savetxt(os.path.join(steps_folder, file_name_steps), step_val)
 
-colors = [(0, 0.4470, 0.7410), (0.8500, 0.3250, 0.0980), (0.4660, 0.6740, 0.1880), (120/255,120/255, 120/255), (0.7, 0.2, 0.5)]
-tab_sign = ['-', '--', '-.', ':', 'solid']
-markers = ['^','s', '<', 'o', '*']
+colors = [
+    (0.000, 0.447, 0.741),   # blue
+    (0.850, 0.325, 0.098),   # red-orange
+    (0.466, 0.674, 0.188),   # green
+    (0.494, 0.184, 0.556),   # purple
+    (0.929, 0.694, 0.125),   # yellow
+    (0.301, 0.745, 0.933),   # cyan
+    (0.635, 0.078, 0.184),   # dark red
+    (0.7,   0.2,   0.5),     # magenta blend
+    (0.2,   0.2,   0.2),     # dark gray
+    (0.7,   0.7,   0.7)      # light gray
+]
+tab_sign = [
+    '-',
+    '--',
+    '-.',
+    ':',
+    (0, (5, 1)),     # dashed, fine
+    (0, (3, 1, 1, 1)),  # dash-dot-dot
+    (0, (1, 1)),     # densely dotted
+    (0, (3, 5, 1, 5)),  # dash-space patterns
+    (0, (5, 10)),    # very sparse dash
+    'solid'
+]
+markers = [
+    'o',   # circle
+    's',   # square
+    '^',   # triangle up
+    'v',   # triangle down
+    '<',   # triangle left
+    '>',   # triangle right
+    'D',   # diamond
+    'P',   # plus-filled
+    'X',   # x-filled
+    '*'    # star
+]
 
 def test_accuracy_curve(path_to_results, path_to_plot, colors=colors, tab_sign=tab_sign, markers=markers):
         
@@ -407,7 +440,7 @@ def test_accuracy_curve(path_to_results, path_to_plot, colors=colors, tab_sign=t
                                     
                                     
 
-def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, tab_sign=tab_sign, markers=markers):
+def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, tab_sign=tab_sign, markers=markers, min_accuracy=0.0):
         """
         THis is the modified version of byzfl's terst_accuracy_curve function, that replicates plots in Peng et Al
         """
@@ -573,7 +606,7 @@ def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, t
                                         ax.legend()
                                         ax.set_xlabel('Round')
                                         ax.set_ylabel('Accuracy')
-                                        ax.set_ylim(0,1)
+                                        ax.set_ylim(min_accuracy,1)
                                         ax.set_xlim(0,(nb_accuracies-1)*evaluation_delta)
 
                                 plt.tight_layout()
