@@ -2441,3 +2441,217 @@ def evaluate_impact_subset_size(path_to_results, path_to_plot, colors=colors, ta
                             
                             plt.savefig(path_to_plot+"/"+plot_name+'_plot.pdf')
                             plt.close()
+                            
+
+def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot, colors=colors, tab_sign=tab_sign, markers=markers):
+    """
+    Trace des boxplots de (Best_Robust_Acc - Mean_Acc).
+    Les bins sont adaptatives : chaque bin contient environ 6 points de données,
+    triés par exclusivité croissante.
+    """
+    
+    # --- CONFIGURATION ---
+    mean_agg_name = "Average"
+    points_per_bin = 6  # Nombre cible de points par boxplot
+    
+    # Lecture config
+    try:
+        with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
+            data = json.load(file)
+    except Exception as e:
+        print(f"ERROR reading config.json: {e}")
+        return
+    
+    try:
+        os.makedirs(path_to_plot, exist_ok=True)
+    except OSError as error:
+        print(f"Error creating directory: {error}")
+    
+    # <-------------- Config Loading ------------->
+    training_seed = data["benchmark_config"]["training_seed"]
+    nb_training_seeds = data["benchmark_config"]["nb_training_seeds"]
+    nb_honest_clients = ensure_list(data["benchmark_config"]["nb_honest_clients"])
+    nb_byz = ensure_list(data["benchmark_config"]["f"])
+    nb_declared = ensure_list(data["benchmark_config"].get("tolerated_f", None))
+    data_distribution_seed = data["benchmark_config"]["data_distribution_seed"]
+    nb_data_distribution_seeds = data["benchmark_config"]["nb_data_distribution_seeds"]
+    data_distributions = ensure_list(data["benchmark_config"]["data_distribution"])
+    set_honest_clients_as_clients = data["benchmark_config"]["set_honest_clients_as_clients"]
+    
+    # Model & Honest Config
+    model_name = data["model"]["name"]
+    dataset_name = data["model"]["dataset_name"]
+    lr = ensure_list(data["model"]["learning_rate"])[0]
+    momentum = ensure_list(data["honest_clients"]["momentum"])[0]
+    wd = ensure_list(data["honest_clients"]["weight_decay"])[0]
+
+    aggregators = ensure_list(data["aggregator"])
+    pre_aggregators = data["pre_aggregators"]
+    if not pre_aggregators or isinstance(pre_aggregators[0], dict):
+        pre_aggregators = [pre_aggregators]
+    
+    pre_agg_names = "_".join([pa['name'] for pa in pre_aggregators[0]])
+    attacks = ensure_list(data["attack"])
+    
+    # --- BOUCLES PRINCIPALES ---
+    for nb_honest in nb_honest_clients:
+        for nb_byzantine in nb_byz:
+            
+            # Gestion nb_declared
+            if nb_declared[0] is None:
+                curr_nb_declared = [nb_byzantine]
+            else:
+                curr_nb_declared = [d for d in nb_declared if d >= nb_byzantine]
+            
+            for nb_decl in curr_nb_declared:
+                
+                if set_honest_clients_as_clients:
+                    nb_nodes = nb_honest
+                else:
+                    nb_nodes = nb_honest + nb_byzantine
+
+                # Création de la figure
+                fig, axes = plt.subplots(1, len(attacks), figsize=(6*len(attacks), 7), sharey=True) # Hauteur augmentée pour les labels X
+                if len(attacks) == 1: axes = [axes]
+                
+                fig.suptitle(f"Gain Robustesse (Bins de {points_per_bin} seeds) - n={nb_nodes}, f={nb_byzantine}", fontsize=14)
+
+                for i_atk, attack in enumerate(attacks):
+                    attack_name = attack['name']
+                    ax = axes[i_atk]
+
+                    all_points = [] # Stocke (exclusivité, delta)
+
+                    # --- 1. COLLECTE DES DONNÉES ---
+                    for data_dist in data_distributions:
+                        dist_params = ensure_list(data_dist["distribution_parameter"])
+                        
+                        for dist_param in dist_params:
+                            for run_dd in range(nb_data_distribution_seeds):
+                                # Calcul Exclusivité
+                                exclusivity_path = os.path.join(
+                                    path_to_results,
+                                    f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
+                                    f"{custom_dict_to_str(data_dist['name'])}_{dist_param}_{mean_agg_name}_"
+                                    f"{pre_agg_names}_{custom_dict_to_str(attack_name)}_lr_{lr}_mom_{momentum}_wd_{wd}",
+                                    f"distributions/worker_distributions_dd_seed_{run_dd + data_distribution_seed}.txt"
+                                )
+                                
+                                try:
+                                    distrib = genfromtxt(exclusivity_path, delimiter=',')
+                                    majority_class = np.argmax(distrib[nb_honest]) 
+                                    excl = distrib[nb_honest][majority_class] / distrib[:, majority_class].sum()
+                                except Exception:
+                                    excl = np.nan
+                                
+                                if np.isnan(excl): continue
+
+                                for run_tr in range(nb_training_seeds):
+                                    # Fonction interne chargement
+                                    def get_acc(agg_n):
+                                        f_name = (
+                                            f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
+                                            f"{custom_dict_to_str(data_dist['name'])}_{dist_param}_{custom_dict_to_str(agg_n)}_"
+                                            f"{pre_agg_names}_{custom_dict_to_str(attack_name)}_lr_{lr}_mom_{momentum}_wd_{wd}"
+                                        )
+                                        p = os.path.join(path_to_results, f_name, 
+                                                         f"test_accuracy_tr_seed_{run_tr + training_seed}_dd_seed_{run_dd + data_distribution_seed}.txt")
+                                        if os.path.exists(p):
+                                            return np.max(genfromtxt(p, delimiter=','))
+                                        return np.nan
+
+                                    # Delta Calcul
+                                    acc_mean = get_acc(mean_agg_name)
+                                    best_robust = -np.inf
+                                    found_robust = False
+                                    for agg in aggregators:
+                                        if agg['name'] == mean_agg_name: continue
+                                        val = get_acc(agg['name'])
+                                        if not np.isnan(val):
+                                            found_robust = True
+                                            if val > best_robust: best_robust = val
+                                    
+                                    if not np.isnan(acc_mean) and found_robust:
+                                        delta = best_robust - acc_mean
+                                        all_points.append((excl, delta))
+
+                    # --- 2. LOGIQUE DE BINNING ADAPTATIF ---
+                    # On trie tous les points par exclusivité croissante
+                    all_points.sort(key=lambda x: x[0])
+                    
+                    bin_data = []   # Liste des listes de deltas (Y)
+                    bin_labels = [] # Liste des labels (X)
+                    
+                    if len(all_points) > 0:
+                        i = 0
+                        total_points = len(all_points)
+                        
+                        while i < total_points:
+                            # Définir la fin du chunk actuel
+                            end_idx = i + points_per_bin
+                            
+                            # Logique de fusion pour les restes :
+                            # Si le reste après ce chunk est trop petit (ex: < 3 points),
+                            # on inclut tout le reste dans le chunk actuel.
+                            # Sinon, on garde le chunk de taille standard.
+                            if (total_points - end_idx) < (points_per_bin / 2):
+                                end_idx = total_points
+                            
+                            # Extraction du chunk
+                            chunk = all_points[i:end_idx]
+                            
+                            # Extraction des données pour le plot
+                            deltas = [p[1] for p in chunk]
+                            excls = [p[0] for p in chunk]
+                            
+                            bin_data.append(deltas)
+                            
+                            # Création du label : "Min-Max" exclusivité dans ce chunk
+                            if len(excls) > 0:
+                                min_e = min(excls)
+                                max_e = max(excls)
+                                # Si c'est quasiment le même point (arrondi), on met juste un chiffre
+                                if abs(max_e - min_e) < 0.01:
+                                    bin_labels.append(f"{min_e:.2f}")
+                                else:
+                                    bin_labels.append(f"{min_e:.2f}-{max_e:.2f}")
+                            else:
+                                bin_labels.append("N/A")
+
+                            # Avancer l'index
+                            i = end_idx
+
+                    # --- PLOTTING ---
+                    if bin_data:
+                        ax.boxplot(bin_data, labels=bin_labels, patch_artist=True)
+                    
+                    # Esthétique
+                    ax.set_title(attack_name)
+                    ax.set_xlabel("Intervalle d'Exclusivité")
+                    ax.set_ylabel("Gain (Max Robuste - Moyenne)")
+                    ax.grid(True, linestyle='--', alpha=0.5)
+                    ax.axhline(0, color='black', linewidth=1, linestyle='--')
+                    
+                    # Rotation des labels X car "0.12-0.18" prend de la place
+                    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", fontsize=9)
+                                                                    
+                plt.tight_layout()
+
+                # Construction du nom de fichier
+                plot_name = (
+                    f"boxplot_adaptive_bins_"
+                    f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
+                    f"{pre_agg_names}_lr_{lr}"
+                )
+                
+                final_path = os.path.join(path_to_plot, plot_name + '_plot.pdf')
+                plt.savefig(final_path)
+                plt.close()
+                print(f"Plot sauvé : {final_path}")
+
+# Fonctions auxiliaires
+def ensure_list(x):
+    return x if isinstance(x, list) else [x]
+
+def custom_dict_to_str(d):
+    return str(d)
