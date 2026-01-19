@@ -9,6 +9,7 @@ import numpy as np
 from numpy import genfromtxt
 from byzfl.benchmark.managers import FileManager
 import seaborn as sns
+from scipy.stats import linregress
 
 
 def custom_dict_to_str(dictionary):
@@ -2443,11 +2444,28 @@ def evaluate_impact_subset_size(path_to_results, path_to_plot, colors=colors, ta
                             plt.close()
                             
 
-def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot, colors=colors, tab_sign=tab_sign, markers=markers):
+def compute_exclusivity(distrib, nb_honest, nb_nodes):
+    "Computes the share of the byzantine client' majority class in the total training data"
+    majority_class = np.argmax(distrib[nb_honest]) 
+    return distrib[nb_honest][majority_class] / distrib[:, majority_class].sum()
+                
+def compute_entropy(distrib: np.array, nb_honest, nb_nodes):
+    "returns the entropy of the classes held by the byzantine client"
+    class_shares_byzantine = distrib[nb_honest] / distrib[nb_honest].sum()
+
+    #filter 0s to avoid log(0)
+    class_shares_byzantine = class_shares_byzantine[class_shares_byzantine>0]
+    entropy = -1*np.sum(class_shares_byzantine*np.log(class_shares_byzantine))
+    return entropy
+                        
+
+def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot,exclusivity_computation = compute_entropy, plot_regression=False):
     """
     Trace des boxplots de (Best_Robust_Acc - Mean_Acc).
     Les bins sont adaptatives : chaque bin contient environ 6 points de données,
-    triés par exclusivité croissante.
+    triés par mesure d'exclusivité croissante.
+    
+    exclusivity_computation is a function computing a measure of exclusivity from the label distribution amongst clients
     """
     
     # --- CONFIGURATION ---
@@ -2493,6 +2511,11 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot, col
     pre_agg_names = "_".join([pa['name'] for pa in pre_aggregators[0]])
     attacks = ensure_list(data["attack"])
     
+    if exclusivity_computation == compute_entropy:
+        xlabel = "entropy"
+    else:
+        xlabel="exclusivity"
+    
     # --- BOUCLES PRINCIPALES ---
     for nb_honest in nb_honest_clients:
         for nb_byzantine in nb_byz:
@@ -2514,7 +2537,7 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot, col
                 fig, axes = plt.subplots(1, len(attacks), figsize=(6*len(attacks), 7), sharey=True) # Hauteur augmentée pour les labels X
                 if len(attacks) == 1: axes = [axes]
                 
-                fig.suptitle(f"Gain Robustesse (Bins de {points_per_bin} seeds) - n={nb_nodes}, f={nb_byzantine}", fontsize=14)
+                fig.suptitle(f"Advantage of robustness over multiple seeds (Bins of {points_per_bin} seeds) - n={nb_nodes}, f={nb_byzantine}", fontsize=14)
 
                 for i_atk, attack in enumerate(attacks):
                     attack_name = attack['name']
@@ -2538,9 +2561,10 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot, col
                                 )
                                 
                                 try:
-                                    distrib = genfromtxt(exclusivity_path, delimiter=',')
-                                    majority_class = np.argmax(distrib[nb_honest]) 
-                                    excl = distrib[nb_honest][majority_class] / distrib[:, majority_class].sum()
+                                    distrib = np.array(genfromtxt(exclusivity_path, delimiter=','))
+
+                                    excl= exclusivity_computation(distrib,nb_honest, nb_nodes)
+                                    
                                 except Exception:
                                     excl = np.nan
                                 
@@ -2625,10 +2649,35 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot, col
                     if bin_data:
                         ax.boxplot(bin_data, labels=bin_labels, patch_artist=True)
                     
+                    if plot_regression:
+                        #plot the linear regression of the delta in accuracy on the exclusivity
+                        all_excls = [p[0] for p in all_points]
+                        all_deltas = [p[1] for p in all_points]
+                        if len(all_excls) >=2:
+                            slope, intercept, r_value, p_value, std_err = linregress(all_excls, all_deltas)
+                            x_vals = np.array([min(all_excls), max(all_excls)])
+                            y_vals = intercept + slope * x_vals
+                            #rendre l'axe des abscisses compatible avec les boxplots
+                            if bin_labels:
+                                x_ticks = []
+                                for lbl in bin_labels:
+                                    if '-' in lbl:
+                                        parts = lbl.split('-')
+                                        mid = (float(parts[0]) + float(parts[1])) / 2
+                                        x_ticks.append(mid)
+                                    else:
+                                        x_ticks.append(float(lbl))
+                                ax.set_xticks(range(1, len(x_ticks)+1), labels=bin_labels)
+                                x_vals_transformed = np.interp(x_vals, x_ticks, range(1, len(x_ticks)+1))
+                            else :
+                                x_vals_transformed = x_vals
+                            ax.plot(x_vals_transformed, y_vals, color='orange', linestyle='--', label=f"Linear regression,p={p_value:.3f}")
+                            ax.legend()
+                    
                     # Esthétique
                     ax.set_title(attack_name)
-                    ax.set_xlabel("Intervalle d'Exclusivité")
-                    ax.set_ylabel("Gain (Max Robuste - Moyenne)")
+                    ax.set_xlabel(xlabel)
+                    ax.set_ylabel("Gain (Max Robuste - Mean)")
                     ax.grid(True, linestyle='--', alpha=0.5)
                     ax.axhline(0, color='black', linewidth=1, linestyle='--')
                     
@@ -2644,7 +2693,7 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot, col
                     f"{pre_agg_names}_lr_{lr}"
                 )
                 
-                final_path = os.path.join(path_to_plot, plot_name + '_plot.pdf')
+                final_path = os.path.join(path_to_plot, plot_name + f'_{xlabel}'+'_plot.pdf')
                 plt.savefig(final_path)
                 plt.close()
                 print(f"Plot sauvé : {final_path}")
@@ -2655,3 +2704,5 @@ def ensure_list(x):
 
 def custom_dict_to_str(d):
     return str(d)
+
+
