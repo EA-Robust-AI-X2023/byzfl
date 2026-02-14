@@ -59,11 +59,17 @@ class FileManager:
         Write a single array to a file.
         """
         file_path = os.path.join(self.files_path, file_name)
+        
         np.savetxt(file_path, [array], fmt="%.4f", delimiter=",")
         
     def write_matrix_in_file(self, matrix, file_name):
         file_path = os.path.join(self.files_path, file_name)
         np.savetxt(file_path, matrix, fmt="%.4f", delimiter=",")
+        
+    def write_dict_in_file(self, dict_to_write, file_name):
+        file_path = os.path.join(self.files_path, file_name)
+        with open(file_path, "w") as f:
+            json.dump(dict_to_write, f, indent=4, separators=(",", ": "))
     
     def make_distribution_dir(self):
         """_summary_

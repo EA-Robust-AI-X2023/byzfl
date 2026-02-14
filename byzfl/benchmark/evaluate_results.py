@@ -1361,6 +1361,7 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
                                     nb_scatterings
                                 ))
                                 for i_attack, attack in enumerate(attacks): #in contrast with accuracy path, we separate attacks here
+                                    attack_name = attack['name']
                                     hyper_file_name = (
                                     f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
                                     f"{custom_dict_to_str(data_dist['name'])}_{dist_parameter}_{pre_agg_names}_{agg['name']}.txt"
@@ -1388,7 +1389,7 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
                                                 f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_"
                                                 f"d_{nb_decl}_{custom_dict_to_str(data_dist['name'])}_"
                                                 f"{dist_parameter}_{custom_dict_to_str(agg['name'])}_"
-                                                f"{pre_agg_names}_{custom_dict_to_str(attack['name'])}_"
+                                                f"{pre_agg_names}_{custom_dict_to_str(attack_name)}_"
                                                 f"lr_{lr}_mom_{momentum}_wd_{wd}"
                                             )
                                             path_scat_ksi = os.path.join(
@@ -1407,42 +1408,24 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
                                             tab_scat_A[i_attack,run_dd, run] = genfromtxt(path_scat_A)
 
                                     #this part might need to be modified for the purpose of gradient scattering...
-                                    tab_scat_ksi = tab_scat_ksi.reshape(len(attacks),
-                                        nb_data_distribution_seeds * nb_training_seeds,
-                                        nb_scatterings
-                                    )
-                                    
-                                    tab_scat_A = tab_scat_A.reshape(len(attacks),
-                                        nb_data_distribution_seeds * nb_training_seeds,
-                                        nb_scatterings
-                                    )
-                                    err_A=np.zeros((len(attacks), nb_scatterings))
-                                    err_ksi=np.zeros((len(attacks), nb_scatterings))
-
-                                    err_ksi[i_attack] = (1.96*np.std(tab_scat_ksi[i_attack], axis = 0))/math.sqrt(nb_training_seeds*nb_data_distribution_seeds)
-                                    err_A[i_attack] = (1.96*np.std(tab_scat_A[i_attack], axis = 0))/math.sqrt(nb_training_seeds*nb_data_distribution_seeds)
-
-                                    plt.rcParams.update({'font.size': 12})
-                                    
-                                    tab_scat_ksi = tab_scat_ksi.reshape(len(attacks),
-                                        nb_data_distribution_seeds, nb_training_seeds,
-                                        nb_scatterings
-                                    )
-                                    
-                                    tab_scat_A = tab_scat_A.reshape(len(attacks),
-                                        nb_data_distribution_seeds, nb_training_seeds,
-                                        nb_scatterings
-                                    )
-                                
                                 tab_scat_ksi = tab_scat_ksi.reshape(len(attacks),
-                                        nb_data_distribution_seeds * nb_training_seeds,
-                                        nb_scatterings
-                                    )
-                                    
+                                    nb_data_distribution_seeds * nb_training_seeds,
+                                    nb_scatterings
+                                )
+                                
                                 tab_scat_A = tab_scat_A.reshape(len(attacks),
-                                        nb_data_distribution_seeds * nb_training_seeds,
-                                        nb_scatterings
-                                    )
+                                    nb_data_distribution_seeds * nb_training_seeds,
+                                    nb_scatterings
+                                )
+                                
+                                err_A = np.zeros((len(attacks), nb_scatterings))
+                                err_ksi = np.zeros((len(attacks), nb_scatterings))
+
+                                for i_attack in range(len(attacks)):
+                                    err_ksi[i_attack] = (1.96*np.std(tab_scat_ksi[i_attack], axis=0))/math.sqrt(nb_training_seeds*nb_data_distribution_seeds)
+                                    err_A[i_attack] = (1.96*np.std(tab_scat_A[i_attack], axis=0))/math.sqrt(nb_training_seeds*nb_data_distribution_seeds)
+
+                                plt.rcParams.update({'font.size': 12})
                                 
                                 #i_ksi is the index of the attack with the highest maximal scattering value for ksi. Hence we take the argmax:
                                 i_ksi = np.argmax(tab_scat_ksi.mean(axis=1).max(axis=1))
@@ -1452,13 +1435,14 @@ def plot_gradients_scattering(path_to_results, path_to_plot):
                                 # plt.fill_between(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_ksi[i_ksi], axis = 0) - err_ksi, np.mean(tab_scat_ksi[i_ksi], axis = 0) + err_ksi, alpha = 0.25)
 
                                 for i_attack, attack in enumerate(attacks):
-                                    plt.plot(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_A[i_attack], axis = 0), label = f"A - {attack["name"]}", color = colors[i_attack+1], linestyle = tab_sign[1], marker = None, markevery = 1)
+                                    attack_name = attack['name']
+                                    plt.plot(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_A[i_attack], axis = 0), label = f"A - {attack_name}", color = colors[i_attack+1], linestyle = tab_sign[1], marker = None, markevery = 1)
                                     # plt.fill_between(np.linspace(0, (nb_scatterings-1)*evaluation_delta, nb_scatterings), np.mean(tab_scat_A[i_attack], axis = 0) - err_A[i_attack], np.mean(tab_scat_A[i_attack], axis = 0) + err_A[i_attack], alpha = 0.25)
 
                                 plt.xlim(0,(nb_scatterings-1)*evaluation_delta)
                                 plt.xlabel('Round')
                                 plt.ylabel("Gradient heterogeneity")
-                                plt.title(f"{gradient_type} gradient scatterings, {data_dist["name"]}-{str(dist_parameter)} distribution")
+                                plt.title(f"{gradient_type} gradient scatterings, {data_dist['name']}-{str(dist_parameter)} distribution")
                                 plt.grid()
                                 plt.legend()
 
@@ -2444,18 +2428,25 @@ def evaluate_impact_subset_size(path_to_results, path_to_plot, colors=colors, ta
                             plt.close()
                             
 
-def compute_exclusivity(distrib, nb_honest, nb_nodes):
-    "Computes the share of the byzantine client' majority class in the total training data"
-    majority_class = np.argmax(distrib[nb_honest]) 
-    return distrib[nb_honest][majority_class] / distrib[:, majority_class].sum()
-                
-def compute_entropy(distrib: np.array, nb_honest, nb_nodes):
-    "returns the entropy of the classes held by the byzantine client"
-    class_shares_byzantine = distrib[nb_honest] / distrib[nb_honest].sum()
+def compute_exclusivity(partitions):
+    """
+    computes the exclusivity measure of the partition
 
-    #filter 0s to avoid log(0)
-    class_shares_byzantine = class_shares_byzantine[class_shares_byzantine>0]
-    entropy = -1*np.sum(class_shares_byzantine*np.log(class_shares_byzantine))
+    Args:
+        partition (np.array): (nb_worker, nb_classes) array
+    """
+    exclusivity=[]
+    for client_distrib in partitions:
+        majority_class= np.argmax(client_distrib) #nb_honest is the index of the byzantine worker
+        exclusivity.append(client_distrib[majority_class]/partitions[:,majority_class].sum())
+    return exclusivity  
+
+  
+def compute_entropy(distrib: np.array):
+    "returns the entropy of the classes held by each client"
+    distrib = distrib + 1e-10 # to avoid log(0)
+    distrib = distrib / distrib.sum(axis=1, keepdims=True) # normalize to get probabilities
+    entropy = -np.sum(distrib * np.log(distrib), axis=1)
     return entropy
                         
 

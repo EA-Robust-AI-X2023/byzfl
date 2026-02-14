@@ -676,6 +676,9 @@ class Lfighter(object):
            Blanco-Justicia. Defending against the Label-flipping Attack in Federated
            Learning. In arXiv, 2022.
     """
+    def __init__(self):
+        super().__init__()
+        self.scores = None
     
     def clusters_dissimilarity(
         self,
@@ -738,7 +741,8 @@ class Lfighter(object):
         cs0, cs1 = self.clusters_dissimilarity(clusters[0], clusters[1])
         good_cluster = 1 if cs0 < cs1 else 0
 
-        scores = np.where(labels == good_cluster, 1.0, 0.0)  
+        scores = np.where(labels == good_cluster, 1.0, 0.0)
+        self.scores = scores
         return torch.from_numpy(scores).to(local_gradients[0][0].device)
         
     
@@ -748,6 +752,7 @@ class Lfighter(object):
             "Call `self.get_scores()` on the local gradients without momentum, "
             "then compute the aggregate via `self.average_gradients()`"
         )
+        
     
 
 class Faba(object):

@@ -8,7 +8,7 @@ from torchvision import datasets, transforms
 from byzfl import Client, Server, DataDistributor, PoisoningClient
 from byzfl.utils.misc import set_random_seed
 from byzfl.benchmark.managers import ParamsManager, FileManager
-from byzfl.benchmark.evaluate_results import plot_worker_class_distribution, compute_exclusivity
+from byzfl.benchmark.evaluate_results import plot_worker_class_distribution, compute_exclusivity, compute_entropy
 
 from byzfl.benchmark.measures import compute_scatterings
 
@@ -204,6 +204,11 @@ def start_training(params):
         exlcusivity_file_name=f"distributions/exclusivity_dd_seed_{dd_seed}.txt"
         exclusivity_measures = compute_exclusivity(partitions)
         file_manager.write_matrix_in_file(exclusivity_measures,exlcusivity_file_name)
+        
+        #save entropy measure:
+        entropy_file_name=f"distributions/entropy_dd_seed_{dd_seed}.txt"
+        entropy_measures = compute_entropy(partitions)
+        file_manager.write_matrix_in_file(entropy_measures, entropy_file_name)
 
     set_random_seed(training_seed)
 
@@ -220,6 +225,9 @@ def start_training(params):
 
     val_accuracy_list = np.array([])
     test_accuracy_list = np.array([])
+    per_class_test_accuracy_list = np.zeros((nb_training_steps//evaluation_delta +1, params_manager.get_nb_labels())) #shape (nb_evaluation, nb_labels)
+    per_class_loss_list = np.zeros((nb_training_steps//evaluation_delta +1, params_manager.get_nb_labels())) #shape (nb_evaluation, nb_labels)
+    
     train_loss_list = np.zeros((nb_training_steps))
 
     #measures for our experiences (optional)
@@ -228,6 +236,9 @@ def start_training(params):
     feature_mean = np.array([])
     feature_variance_dict = {i:np.zeros((nb_training_steps//evaluation_delta +1)) for i in range(nb_honest_clients + nb_byz_clients)}
     gradient_variance = np.array([])
+    if "Lfighter" in params_manager.get_aggregator_name():
+        identified_by_lfighter = np.zeros((nb_training_steps, nb_honest_clients + nb_byz_clients))
+
 
     start_time = time.time()
 
@@ -273,6 +284,26 @@ def start_training(params):
                     "test_accuracy_tr_seed_" + str(training_seed) 
                     + "_dd_seed_" + str(dd_seed) +".txt"
                 )
+                
+                #store per class accuracy
+                class_acc_list = server.compute_test_accuracy_per_class(params_manager.get_nb_labels())
+                per_class_test_accuracy_list[training_step//evaluation_delta] = class_acc_list
+                #write per class accuracies as a new line in the file
+                file_manager.write_matrix_in_file(
+                    per_class_test_accuracy_list, 
+                    "test_accuracy_per_class_tr_seed_" + str(training_seed) 
+                    + "_dd_seed_" + str(dd_seed) +".txt")
+                
+                #store per class loss
+                class_loss_list = server.compute_test_loss_per_class(num_classes=params_manager.get_nb_labels())
+                per_class_loss_list[training_step//evaluation_delta] = class_loss_list
+                #write per class losses as a new line in the file
+                file_manager.write_matrix_in_file(
+                    class_loss_list
+                    , "test_loss_per_class_tr_seed_" + str(training_seed) 
+                    + "_dd_seed_" + str(dd_seed) +".txt")
+                
+                
 
             if store_models:
                 file_manager.save_state_dict(
@@ -334,6 +365,9 @@ def start_training(params):
                 
                 # Aggregate the gradients with momentum
                 aggregate_gradient = lfighter.average_gradients(gradients_with_momentum, scores)
+                
+                # store the client identified as malicious by L-fighter
+                identified_by_lfighter[training_step]=scores.cpu().numpy()
                 
                 server.set_gradients(aggregate_gradient)
                 server._step()
@@ -412,21 +446,21 @@ def start_training(params):
                 client_id
             )
 
-            file_manager.save_feature_variance(
-                feature_variance=feature_variance_dict[client_id],
-                training_seed=training_seed,
-                data_dist_seed=dd_seed,
-                client_id=client_id
-            )
+            if make_feature_measures:
+                file_manager.save_feature_variance(
+                    feature_variance=feature_variance_dict[client_id],
+                    training_seed=training_seed,
+                    data_dist_seed=dd_seed,
+                    client_id=client_id
+                )
+                
+    if "Lfighter" in params_manager.get_aggregator_name():
+        file_manager.write_matrix_in_file(
+            identified_by_lfighter, 
+            "identified_by_lfighter_tr_seed_" + str(training_seed) 
+            + "_dd_seed_" + str(dd_seed) +".txt"
+        )
         
-        for client_id, client in enumerate(poisoned_clients):
-            
-            file_manager.save_feature_variance(
-                feature_variance=feature_variance_dict[client_id + nb_honest_clients],
-                training_seed=training_seed,
-                data_dist_seed=dd_seed,
-                client_id=client_id + nb_honest_clients
-            )
     
     if store_models:
         file_manager.save_state_dict(
@@ -436,29 +470,32 @@ def start_training(params):
             training_step
         )
 
-    file_manager.save_honest_scattering(
-        honest_scattering_list=honest_scattering_list,
-        training_seed=training_seed,
-        data_dist_seed=dd_seed
-    )
+    if compute_gradient_scatterings:
+        file_manager.save_honest_scattering(
+            honest_scattering_list=honest_scattering_list,
+            training_seed=training_seed,
+            data_dist_seed=dd_seed
+        )
 
-    file_manager.save_poisoned_scattering(
-        poisoned_scattering_list=poisoned_scattering_list,
-        training_seed=training_seed,
-        data_dist_seed=dd_seed
-    )
+        file_manager.save_poisoned_scattering(
+            poisoned_scattering_list=poisoned_scattering_list,
+            training_seed=training_seed,
+            data_dist_seed=dd_seed
+        )
 
-    file_manager.save_mean_feature_norm(
-        feature_mean=feature_mean,
-        training_seed=training_seed,
-        data_dist_seed=dd_seed
-    )
+    if make_feature_measures:
+        file_manager.save_mean_feature_norm(
+            feature_mean=feature_mean,
+            training_seed=training_seed,
+            data_dist_seed=dd_seed
+        )
 
-    file_manager.save_gradients_variance(
-        gradients_variance=gradient_variance,
-        training_seed=training_seed,
-        data_dist_seed=dd_seed
-    )
+    if compute_gradient_variance:
+        file_manager.save_gradients_variance(
+            gradients_variance=gradient_variance,
+            training_seed=training_seed,
+            data_dist_seed=dd_seed
+        )
     
     execution_time = end_time - start_time
 

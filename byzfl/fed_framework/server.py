@@ -3,6 +3,7 @@ import torch
 
 from byzfl.fed_framework import ModelBaseInterface, RobustAggregator
 from byzfl.utils.conversion import flatten_dict
+import numpy as np
 
 class Server(ModelBaseInterface):
     
@@ -140,6 +141,37 @@ class Server(ModelBaseInterface):
             total += targets.size(0)
             correct += (predicted == targets).sum().item()
         return correct / total
+    
+    def compute_test_accuracy_per_class(self, nb_classes):
+        #should return an np.array of shape (nb_classes,) with the accuracy for each class
+        total = np.zeros(nb_classes)
+        correct = np.zeros(nb_classes) 
+        for inputs, targets in self.test_loader:
+            inputs, targets = inputs.to(self.device), targets.to(self.device)
+            outputs = self.model(inputs)
+            _, predicted = torch.max(outputs.data, 1)
+            for i in range(nb_classes):
+                total[i] += (targets == i).sum().item()
+                correct[i] += ((predicted == targets) & (targets == i)).sum().item()
+        return correct / total
+        
+    def compute_test_loss_per_class(self, num_classes):
+        #should return an np.array of shape (nb_classes,) with the loss for each class
+        criterion = torch.nn.CrossEntropyLoss(reduction='none')
+        total_loss = np.zeros(num_classes)
+        total_samples = np.zeros(num_classes)
+        
+        for inputs, targets in self.test_loader:
+            inputs, targets = inputs.to(self.device), targets.to(self.device)
+            outputs = self.model(inputs)
+            losses = criterion(outputs, targets)
+            for i in range(num_classes):
+                class_mask = (targets == i)
+                total_loss[i] += losses[class_mask].sum().item()
+                total_samples[i] += class_mask.sum().item()
+        
+        average_loss_per_class = total_loss / total_samples
+        return average_loss_per_class
 
     def compute_validation_accuracy(self):
         """

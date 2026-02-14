@@ -110,10 +110,6 @@ class Client(ModelBaseInterface):
         if self.store_per_client_metrics:
             self.loss_list.append(train_loss_value)
 
-        if self.store_per_client_metrics:
-            self.loss_list.append(train_loss_value)
-
-
         return train_loss_value, mean_norm, feature_variance, gradient_variance
 
     def compute_gradients_and_update(self, make_feature_measures = False, compute_variance = False):
@@ -166,7 +162,6 @@ class Client(ModelBaseInterface):
             grads_per_sample = []
 
             # Compute the gradients for each data point
-            individual_gradients = []
             for input, target in zip(inputs, targets):
                 self.model.zero_grad()
                 output = self.model(input.unsqueeze(0))  # Add batch dimension
