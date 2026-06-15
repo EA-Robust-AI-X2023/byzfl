@@ -536,7 +536,7 @@ def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, t
                                 pre_agg_names = "_".join(pre_agg_list_names)
                                 
                                 fig, axes = plt.subplots(1,len(attacks), figsize=(5*len(attacks),5), sharey=True)
-                                fig.suptitle(f"Accuracy paths, distribution: {data_dist['name']}_{str(dist_parameter)}", fontsize=14)
+                                fig.suptitle(f"Accuracy paths, distribution param : {str(dist_parameter)}", fontsize=14)
 
                                 for i_agg, agg in enumerate(aggregators):
 
@@ -593,7 +593,13 @@ def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, t
                                         err = np.zeros((len(attacks), nb_accuracies))
                                         for i in range(len(err)):
                                             err[i] = (1.96*np.std(tab_acc[i], axis = 0))/math.sqrt(nb_training_seeds*nb_data_distribution_seeds)
-                                        
+                                        # save max and min accuracy across steps for each attack, to plot shaded area between them
+                                        minmax = np.zeros((len(attacks), nb_data_distribution_seeds*nb_training_seeds, 2))
+                                        for i in range(len(err)):
+                                            for j in range(nb_data_distribution_seeds*nb_training_seeds):
+                                                minmax[i,j,0] = np.min(tab_acc[i,j,:])
+                                                minmax[i,j,1] = np.max(tab_acc[i,j,:])
+                                                
                                     plt.rcParams.update({'font.size': 12})
 
                                     
@@ -604,7 +610,7 @@ def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, t
                                         
                                         if plot_std:
                                             ax.fill_between(np.arange(nb_accuracies)*evaluation_delta, np.mean(tab_acc[i], axis = 0) - err[i], np.mean(tab_acc[i], axis = 0) + err[i], alpha = 0.25)
-                                        
+                                            # ax.fill_between(np.arange(nb_accuracies)*evaluation_delta, err[i,:,0], err[i,:,1], alpha = 0.25, color = colors[i_agg])                                         
                                         ax.set_title(f"{attack} attack", fontsize=10)
                                         ax.set_xlim(0,(nb_accuracies-1)*evaluation_delta)
                                         ax.grid()
@@ -613,6 +619,12 @@ def test_accuracy_curve_modified(path_to_results, path_to_plot, colors=colors, t
                                         ax.set_ylabel('Accuracy')
                                         ax.set_ylim(min_accuracy,1)
                                         ax.set_xlim(0,(nb_accuracies-1)*evaluation_delta)
+                                        
+                                        #also print in the terminal min and max accuracy across seeds for each attack
+                                        if plot_std:
+                                            for i in range(len(attacks)):
+                                                print(f"Distribution: {custom_dict_to_str(data_dist['name'])}, Aggregator : {agg['name']}, Attack: {attacks[i]['name']}, Min accuracy across seeds: {np.mean(minmax[i,:,0])}, Max accuracy across seeds: {np.mean(minmax[i,:,1])}\n\n")
+
 
                                 plt.tight_layout()
 
@@ -2461,7 +2473,7 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot,excl
     
     # --- CONFIGURATION ---
     mean_agg_name = "Average"
-    points_per_bin = 6  # Nombre cible de points par boxplot
+    points_per_bin = 10  # Nombre cible de points par boxplot
     
     # Lecture config
     try:
@@ -2506,6 +2518,25 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot,excl
         xlabel = "entropy"
     else:
         xlabel="exclusivity"
+
+    def _compute_exclusivity_value(distrib, nb_honest, nb_nodes):
+        try:
+            raw_value = exclusivity_computation(distrib)
+        except TypeError:
+            raw_value = exclusivity_computation(distrib, nb_honest, nb_nodes)
+
+        if np.isscalar(raw_value):
+            return float(raw_value)
+
+        try:
+            values = np.array(raw_value, dtype=float).reshape(-1)
+        except Exception:
+            return np.nan
+
+        byz_client_index = int(nb_honest)
+        if byz_client_index < 0 or byz_client_index >= len(values):
+            return np.nan
+        return float(values[byz_client_index])
     
     # --- BOUCLES PRINCIPALES ---
     for nb_honest in nb_honest_clients:
@@ -2528,7 +2559,7 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot,excl
                 fig, axes = plt.subplots(1, len(attacks), figsize=(6*len(attacks), 7), sharey=True) # Hauteur augmentée pour les labels X
                 if len(attacks) == 1: axes = [axes]
                 
-                fig.suptitle(f"Advantage of robustness over multiple seeds (Bins of {points_per_bin} seeds) - n={nb_nodes}, f={nb_byzantine}", fontsize=14)
+                fig.suptitle(f"Advantage of robustness (Bins of {points_per_bin} seeds) - n={nb_nodes}, f={nb_byzantine}", fontsize=14)
 
                 for i_atk, attack in enumerate(attacks):
                     attack_name = attack['name']
@@ -2554,8 +2585,8 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot,excl
                                 try:
                                     distrib = np.array(genfromtxt(exclusivity_path, delimiter=','))
 
-                                    excl= exclusivity_computation(distrib,nb_honest, nb_nodes)
-                                    
+                                    excl = _compute_exclusivity_value(distrib, nb_honest, nb_nodes)
+
                                 except Exception:
                                     excl = np.nan
                                 
@@ -2573,6 +2604,7 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot,excl
                                                          f"test_accuracy_tr_seed_{run_tr + training_seed}_dd_seed_{run_dd + data_distribution_seed}.txt")
                                         if os.path.exists(p):
                                             return np.max(genfromtxt(p, delimiter=','))
+                                            # return genfromtxt(p, delimiter=',')[-1] # accuracy finale
                                         return np.nan
 
                                     # Delta Calcul
@@ -2635,10 +2667,25 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot,excl
 
                             # Avancer l'index
                             i = end_idx
+                            
+                    #fusionner les bins qui ont le meme label
+                    merged_bin_data = []
+                    merged_bin_labels = []
+                    for lbl, data in zip(bin_labels, bin_data):
+                        if lbl in merged_bin_labels:
+                            idx = merged_bin_labels.index(lbl)
+                            merged_bin_data[idx].extend(data)
+                        else:
+                            merged_bin_labels.append(lbl)
+                            merged_bin_data.append(data)
+                    # ajouter nombre de points dans le label
+
+                    merged_bin_labels = [f"{lbl} ({len(data)})" for lbl, data in zip(merged_bin_labels, merged_bin_data)]
+                            
 
                     # --- PLOTTING ---
-                    if bin_data:
-                        ax.boxplot(bin_data, labels=bin_labels, patch_artist=True)
+                    if merged_bin_data:
+                        ax.boxplot(merged_bin_data, tick_labels=merged_bin_labels, patch_artist=True)
                     
                     if plot_regression:
                         #plot the linear regression of the delta in accuracy on the exclusivity
@@ -2649,16 +2696,16 @@ def evaluate_impact_exclusivity_adaptive_bins(path_to_results, path_to_plot,excl
                             x_vals = np.array([min(all_excls), max(all_excls)])
                             y_vals = intercept + slope * x_vals
                             #rendre l'axe des abscisses compatible avec les boxplots
-                            if bin_labels:
+                            if merged_bin_labels:
                                 x_ticks = []
-                                for lbl in bin_labels:
+                                for lbl in merged_bin_labels:
                                     if '-' in lbl:
                                         parts = lbl.split('-')
                                         mid = (float(parts[0]) + float(parts[1])) / 2
                                         x_ticks.append(mid)
                                     else:
                                         x_ticks.append(float(lbl))
-                                ax.set_xticks(range(1, len(x_ticks)+1), labels=bin_labels)
+                                ax.set_xticks(range(1, len(x_ticks)+1), labels=merged_bin_labels)
                                 x_vals_transformed = np.interp(x_vals, x_ticks, range(1, len(x_ticks)+1))
                             else :
                                 x_vals_transformed = x_vals
@@ -2697,3 +2744,546 @@ def custom_dict_to_str(d):
     return str(d)
 
 
+
+def evaluate_per_class_accuracies(path_to_results, path_to_plot):
+    """
+    Trace des boxplots de l'accuracy par classe en fonction d'une mesure d'exclusivité, d'entropie ou du paramètre de la distribution de Dirichlet.
+    Les classes "source" et "target" sont définies respectivement comme la classe majoritaire dans le worker byzantin et la classe vers laquelle il flip (9-i).
+    """
+    try:
+        with open(os.path.join(path_to_results, 'config.json'), 'r') as file:
+            data = json.load(file)
+    except Exception as e:
+        logger.error(f"Failed reading config.json: {e}")
+        return
+
+    try:
+        os.makedirs(path_to_plot, exist_ok=True)
+    except OSError as error:
+        logger.error(f"Failed creating directory: {error}")
+        return
+
+    path_to_hyperparameters = os.path.join(path_to_results, "best_hyperparameters", "hyperparameters")
+
+    # <-------------- Benchmark Config ------------->
+    training_seed = data["benchmark_config"]["training_seed"]
+    nb_training_seeds = data["benchmark_config"]["nb_training_seeds"]
+    nb_honest_clients = ensure_list(data["benchmark_config"]["nb_honest_clients"])
+    nb_byz = ensure_list(data["benchmark_config"]["f"])
+    nb_declared = ensure_list(data["benchmark_config"].get("tolerated_f", None))
+    data_distribution_seed = data["benchmark_config"]["data_distribution_seed"]
+    nb_data_distribution_seeds = data["benchmark_config"]["nb_data_distribution_seeds"]
+    data_distributions = ensure_list(data["benchmark_config"]["data_distribution"])
+    set_honest_clients_as_clients = data["benchmark_config"]["set_honest_clients_as_clients"]
+
+    # <-------------- Model Config ------------->
+    model_name = data["model"]["name"]
+    dataset_name = data["model"]["dataset_name"]
+    nb_labels = data["model"]["nb_labels"]
+    lr_list = ensure_list(data["model"]["learning_rate"])
+
+    # <-------------- Honest Nodes Config ------------->
+    momentum_list = ensure_list(data["honest_clients"]["momentum"])
+    wd_list = ensure_list(data["honest_clients"]["weight_decay"])
+
+    # <-------------- Aggregators Config ------------->
+    aggregators = ensure_list(data["aggregator"])
+    pre_aggregators = data["pre_aggregators"]
+    if not pre_aggregators or isinstance(pre_aggregators[0], dict):
+        pre_aggregators = [pre_aggregators]
+
+    # <-------------- Attacks Config ------------->
+    attacks = ensure_list(data["attack"])
+
+    def _safe_read_array(path):
+        if not os.path.exists(path):
+            return None
+        try:
+            array = np.array(genfromtxt(path, delimiter=','), dtype=float)
+        except Exception:
+            return None
+        if array.size == 0:
+            return None
+        return array
+
+    def _extract_best_per_class_accuracy(per_class_values, nb_classes):
+        array = np.array(per_class_values, dtype=float)
+        if array.ndim == 1:
+            if array.shape[0] < nb_classes:
+                return None
+            return array[:nb_classes]
+
+        if array.ndim != 2:
+            return None
+
+        if array.shape[1] != nb_classes:
+            if array.shape[0] == nb_classes:
+                array = array.T
+            else:
+                return None
+
+        row_scores = np.nanmean(array, axis=1)
+        if np.all(np.isnan(row_scores)):
+            return None
+
+        best_step = int(np.nanargmax(row_scores))
+        
+        #rather than taking best step, take the last step for which all values are not 0
+        # last_valid_step = -3
+        # for step in range(array.shape[0]):
+        #     if np.all(array[step] > 0):
+        #         last_valid_step = step
+        #     else:
+        #         break
+        # best_step = last_valid_step if last_valid_step >= 0 else 0
+        return array[best_step]
+
+    def _resolve_distribution_parameter_values(dist_name, dist_parameter):
+        dist_name_str = str(dist_name).strip().lower()
+        if dist_name_str == "extreme_niid_modified":
+            return "None", 0.0
+
+        filename_value = dist_parameter
+        try:
+            plot_value = float(dist_parameter)
+        except (TypeError, ValueError):
+            plot_value = np.nan
+        return filename_value, plot_value
+
+    def _build_bins(x_values, mode, max_bins=10):
+        finite_values = [float(value) for value in x_values if np.isfinite(value)]
+        if len(finite_values) == 0:
+            return []
+
+        if mode == "distribution_parameter":
+            unique_values = sorted(set(finite_values))
+            return [{"label": f"{value:g}", "min": value, "max": value} for value in unique_values]
+
+        sorted_values = sorted(finite_values)
+        bins = []
+        points_per_bin = max(1, int(math.ceil(len(sorted_values) / float(max_bins))))
+        idx = 0
+        total = len(sorted_values)
+        while idx < total:
+            end_idx = idx + points_per_bin
+            if (total - end_idx) < (points_per_bin / 2):
+                end_idx = total
+            chunk = sorted_values[idx:end_idx]
+            min_x = float(np.min(chunk))
+            max_x = float(np.max(chunk))
+            if abs(max_x - min_x) < 1e-12:
+                label = f"{min_x:.3f}"
+            else:
+                label = f"{min_x:.3f}-{max_x:.3f}"
+            bins.append({"label": label, "min": min_x, "max": max_x})
+            idx = end_idx
+        return bins
+
+    def _assign_bin(value, bins, mode):
+        if not np.isfinite(value) or len(bins) == 0:
+            return None
+        value = float(value)
+
+        if mode == "distribution_parameter":
+            for bin_index, one_bin in enumerate(bins):
+                if np.isclose(value, one_bin["min"], atol=1e-12, rtol=0.0):
+                    return bin_index
+            return None
+
+        for bin_index, one_bin in enumerate(bins):
+            if bin_index == len(bins) - 1:
+                if one_bin["min"] <= value <= one_bin["max"]:
+                    return bin_index
+            else:
+                if one_bin["min"] <= value < one_bin["max"]:
+                    return bin_index
+        return None
+
+    def _sanitize_filename_component(value):
+        safe_value = str(value).replace(" ", "_")
+        safe_value = safe_value.replace(os.sep, "-")
+        if os.altsep:
+            safe_value = safe_value.replace(os.altsep, "-")
+        return safe_value
+
+    def _plot_cross_correlation_per_aggregator(points, agg_name, title, output_path):
+        class_keys = ["source", "target", "other"]
+        class_labels = ["source", "target", "other"]
+
+        matrix_values = []
+        for point in points:
+            values = [point.get(class_key, np.nan) for class_key in class_keys]
+            if all(np.isfinite(value) for value in values):
+                matrix_values.append(values)
+
+        if len(matrix_values) < 2:
+            logger.warning(f"Not enough points to compute cross correlation for {agg_name} at {output_path}")
+            return
+
+        values_array = np.array(matrix_values, dtype=float)
+        corr_matrix = np.corrcoef(values_array, rowvar=False)
+        if corr_matrix.shape != (len(class_keys), len(class_keys)):
+            logger.warning(f"Invalid correlation matrix shape for {agg_name} at {output_path}")
+            return
+
+        fig, ax = plt.subplots(figsize=(5.5, 4.8))
+        image = ax.imshow(corr_matrix, cmap='coolwarm', vmin=-1.0, vmax=1.0)
+
+        ax.set_xticks(np.arange(len(class_labels)))
+        ax.set_yticks(np.arange(len(class_labels)))
+        ax.set_xticklabels(class_labels)
+        ax.set_yticklabels(class_labels)
+
+        for row_id in range(corr_matrix.shape[0]):
+            for col_id in range(corr_matrix.shape[1]):
+                value = corr_matrix[row_id, col_id]
+                text_value = "nan" if not np.isfinite(value) else f"{value:.2f}"
+                ax.text(col_id, row_id, text_value, ha='center', va='center', color='black')
+
+        if title:
+            ax.set_title(f"{title} | {agg_name}")
+        else:
+            ax.set_title(f"Cross correlation | {agg_name}")
+
+        colorbar = fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
+        colorbar.set_label("Pearson correlation")
+
+        plt.tight_layout()
+        plt.savefig(output_path)
+        plt.close()
+
+    def _plot_per_attack_class_aggregators_binned(aggregator_points, bins, mode, x_key, class_key, class_label, xlabel, title, output_path):
+        from matplotlib.lines import Line2D
+
+        ordered_aggregators = [agg_name for agg_name in aggregator_points.keys()]
+        if len(ordered_aggregators) == 0 or len(bins) == 0:
+            logger.warning(f"No data to plot for {output_path}")
+            return
+
+        grouped_values = {
+            agg_name: [[] for _ in bins]
+            for agg_name in ordered_aggregators
+        }
+
+        for agg_name in ordered_aggregators:
+            points = aggregator_points[agg_name]
+            for point in points:
+                bin_index = _assign_bin(point[x_key], bins, mode)
+                if bin_index is None:
+                    continue
+                class_value = point[class_key]
+                if np.isfinite(class_value):
+                    grouped_values[agg_name][bin_index].append(float(class_value))
+
+        non_empty_aggregators = []
+        for agg_name in ordered_aggregators:
+            has_values = any(len(bin_values) > 0 for bin_values in grouped_values[agg_name])
+            if has_values:
+                non_empty_aggregators.append(agg_name)
+
+        if len(non_empty_aggregators) == 0:
+            logger.warning(f"No data to plot for {output_path}")
+            return
+
+        ordered_aggregators = non_empty_aggregators
+
+        fig_width = max(9, 1.5 * len(bins))
+        fig, ax = plt.subplots(figsize=(fig_width, 5.5))
+
+        bin_positions = np.arange(len(bins), dtype=float)
+        nb_aggregators = len(ordered_aggregators)
+        group_width = 0.8
+        one_box_width = group_width / max(1, nb_aggregators)
+
+        legend_handles = []
+        for agg_index, agg_name in enumerate(ordered_aggregators):
+            offset = (agg_index - (nb_aggregators - 1) / 2.0) * one_box_width
+            positions = bin_positions + offset
+            values_for_plot = [
+                bin_values if len(bin_values) > 0 else [np.nan]
+                for bin_values in grouped_values[agg_name]
+            ]
+
+            boxplot = ax.boxplot(
+                values_for_plot,
+                positions=positions,
+                widths=one_box_width * 0.9,
+                patch_artist=True,
+                showfliers=False,
+                manage_ticks=False
+            )
+
+            color = colors[agg_index % len(colors)]
+            for box in boxplot['boxes']:
+                box.set(facecolor=color, alpha=0.75)
+            for median in boxplot['medians']:
+                median.set(color='black', linewidth=1.2)
+
+            legend_handles.append(
+                Line2D([0], [0], color=color, lw=6, label=agg_name)
+            )
+
+        ax.set_xticks(bin_positions)
+        ax.set_xticklabels([one_bin["label"] for one_bin in bins], rotation=35, ha='right')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel("Per-class test accuracy")
+        #set inferior limite of y axis to the minimal accuracy observed in the data, and superior limit to 1.0
+        y_inf_lim = min(
+            float(np.nanmin(values_for_plot))
+            for agg_name in ordered_aggregators
+            for values_for_plot in [grouped_values[agg_name][bin_index] for bin_index in range(len(bins))]
+        )
+        ax.set_ylim(max(0.0, y_inf_lim - 0.05), 1.0)
+        if title:
+            ax.set_title(f"{title} | class={class_label}")
+        else:
+            ax.set_title(f"class={class_label}")
+        ax.grid(True, linestyle='--', alpha=0.5)
+        ax.legend(handles=legend_handles, loc='best')
+
+        plt.tight_layout()
+        plt.savefig(output_path)
+        plt.close()
+
+    measure_settings = [
+        {
+            "mode": "exclusivity",
+            "x_key": "x_exclusivity",
+            "xlabel": "Exclusivity (byzantine worker)"
+        },
+        {
+            "mode": "entropy",
+            "x_key": "x_entropy",
+            "xlabel": "Entropy (byzantine worker)"
+        },
+        {
+            "mode": "distribution_parameter",
+            "x_key": "x_distribution_parameter",
+            "xlabel": "Dirichlet parameter"
+        }
+    ]
+
+    for nb_honest in nb_honest_clients:
+        for nb_byzantine in nb_byz:
+            if nb_declared[0] is None:
+                nb_declared_list = [nb_byzantine]
+            else:
+                nb_declared_list = [item for item in nb_declared if item >= nb_byzantine]
+
+            for nb_decl in nb_declared_list:
+                if set_honest_clients_as_clients:
+                    nb_nodes = nb_honest
+                else:
+                    nb_nodes = nb_honest + nb_byzantine
+
+                for pre_agg in pre_aggregators:
+                    pre_agg_names = "_".join([one_pre_agg['name'] for one_pre_agg in pre_agg])
+
+                    for attack in attacks:
+                        attack_name = custom_dict_to_str(attack['name'])
+
+                        aggregator_points = {
+                            custom_dict_to_str(agg['name']): []
+                            for agg in aggregators
+                        }
+
+                        for agg in aggregators:
+                            agg_name = custom_dict_to_str(agg['name'])
+
+                            for data_dist in data_distributions:
+                                dist_name = custom_dict_to_str(data_dist['name'])
+                                dist_parameter_list = ensure_list(data_dist.get("distribution_parameter", None))
+
+                                for dist_parameter in dist_parameter_list:
+                                    dist_parameter_for_filename, dirichlet_value = _resolve_distribution_parameter_values(
+                                        dist_name,
+                                        dist_parameter
+                                    )
+
+                                    hyper_file_name = (
+                                        f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
+                                        f"{dist_name}_{dist_parameter_for_filename}_{pre_agg_names}_{agg_name}.txt"
+                                    )
+                                    hyper_path = os.path.join(path_to_hyperparameters, hyper_file_name)
+
+                                    if os.path.exists(hyper_path):
+                                        hyperparameters = np.loadtxt(hyper_path)
+                                        lr = float(hyperparameters[0])
+                                        momentum = float(hyperparameters[1])
+                                        wd = float(hyperparameters[2])
+                                    else:
+                                        lr = lr_list[0]
+                                        momentum = momentum_list[0]
+                                        wd = wd_list[0]
+
+                                    experiment_name = (
+                                        f"{dataset_name}_{model_name}_n_{nb_nodes}_f_{nb_byzantine}_d_{nb_decl}_"
+                                        f"{dist_name}_{dist_parameter_for_filename}_{agg_name}_{pre_agg_names}_{attack_name}_"
+                                        f"lr_{lr}_mom_{momentum}_wd_{wd}"
+                                    )
+                                    experiment_path = os.path.join(path_to_results, experiment_name)
+
+                                    for run_dd in range(nb_data_distribution_seeds):
+                                        dd_seed = run_dd + data_distribution_seed
+                                        distribution_path = os.path.join(
+                                            experiment_path,
+                                            f"distributions/worker_distributions_dd_seed_{dd_seed}.txt"
+                                        )
+
+                                        partitions = _safe_read_array(distribution_path)
+                                        if partitions is None:
+                                            continue
+
+                                        if partitions.ndim == 1:
+                                            partitions = np.expand_dims(partitions, axis=0)
+
+                                        byz_client_index = nb_honest
+                                        if byz_client_index >= partitions.shape[0]:
+                                            continue
+
+                                        source_class = int(np.argmax(partitions[byz_client_index]))
+                                        target_class = int(nb_labels - 1 - source_class)
+                                        target_class = max(0, min(nb_labels - 1, target_class))
+                                        other_classes = [
+                                            class_id for class_id in range(nb_labels)
+                                            if class_id not in [source_class, target_class]
+                                        ]
+
+                                        all_exclusivities = compute_exclusivity(partitions)
+                                        all_entropies = compute_entropy(partitions)
+                                        if byz_client_index >= len(all_exclusivities) or byz_client_index >= len(all_entropies):
+                                            continue
+
+                                        exclusivity_value = float(all_exclusivities[byz_client_index])
+                                        entropy_value = float(all_entropies[byz_client_index])
+
+                                        for run_tr in range(nb_training_seeds):
+                                            tr_seed = run_tr + training_seed
+                                            per_class_path = os.path.join(
+                                                experiment_path,
+                                                f"test_accuracy_per_class_tr_seed_{tr_seed}_dd_seed_{dd_seed}.txt"
+                                            )
+
+                                            per_class_values = _safe_read_array(per_class_path)
+                                            if per_class_values is None:
+                                                continue
+
+                                            best_per_class = _extract_best_per_class_accuracy(per_class_values, nb_labels)
+                                            if best_per_class is None:
+                                                continue
+
+                                            source_acc = float(best_per_class[source_class])
+                                            target_acc = float(best_per_class[target_class])
+                                            if other_classes:
+                                                other_acc = float(np.nanmean(best_per_class[other_classes]))
+                                            else:
+                                                other_acc = np.nan
+
+                                            aggregator_points[agg_name].append({
+                                                "x_exclusivity": exclusivity_value,
+                                                "x_entropy": entropy_value,
+                                                "x_distribution_parameter": dirichlet_value,
+                                                "source": source_acc,
+                                                "target": target_acc,
+                                                "other": other_acc
+                                            })
+
+                        non_empty_aggregators = [
+                            agg_name for agg_name, points in aggregator_points.items() if len(points) > 0
+                        ]
+
+                        if len(non_empty_aggregators) == 0:
+                            logger.warning(
+                                f"No per-class accuracy data found for attack={attack_name}, "
+                                f"n={nb_nodes}, f={nb_byzantine}, d={nb_decl}, pre_agg={pre_agg_names}"
+                            )
+                            continue
+
+                        base_plot_name = (
+                            f"per_class_accuracy_{dataset_name}_{model_name}_n_{nb_nodes}_"
+                            f"f_{nb_byzantine}_d_{nb_decl}_{pre_agg_names}_{attack_name}"
+                        )
+
+                        title = ("")
+                        #plot cross correlation of source, target and other accuracies for each aggregator
+                        for agg_name in non_empty_aggregators:
+                            safe_agg_name = _sanitize_filename_component(agg_name)
+                            _plot_cross_correlation_per_aggregator(
+                                aggregator_points[agg_name],
+                                agg_name,
+                                title,
+                                os.path.join(path_to_plot, base_plot_name + f"_cross_corr_{safe_agg_name}_plot.pdf")
+                            )
+
+                        for measure_cfg in measure_settings:
+                            measure_mode = measure_cfg["mode"]
+                            x_key = measure_cfg["x_key"]
+                            xlabel = measure_cfg["xlabel"]
+
+                            all_x_values = []
+                            for points in aggregator_points.values():
+                                all_x_values.extend([point[x_key] for point in points if np.isfinite(point[x_key])])
+
+                            if len(all_x_values) == 0:
+                                logger.warning(
+                                    f"No valid {measure_mode} values for attack={attack_name}, n={nb_nodes}, f={nb_byzantine}, d={nb_decl}, pre_agg={pre_agg_names}"
+                                )
+                                continue
+
+                            bins = _build_bins(all_x_values, measure_mode, max_bins=10)
+                            if len(bins) == 0:
+                                logger.warning(
+                                    f"No valid bins for mode={measure_mode}, attack={attack_name}, n={nb_nodes}, f={nb_byzantine}, d={nb_decl}, pre_agg={pre_agg_names}"
+                                )
+                                continue
+
+                            _plot_per_attack_class_aggregators_binned(
+                                aggregator_points,
+                                bins,
+                                measure_mode,
+                                x_key,
+                                class_key="source",
+                                class_label="source",
+                                xlabel=xlabel,
+                                title=title,
+                                output_path=os.path.join(path_to_plot, base_plot_name + f"_{measure_mode}_source_plot.pdf")
+                            )
+
+                            _plot_per_attack_class_aggregators_binned(
+                                aggregator_points,
+                                bins,
+                                measure_mode,
+                                x_key,
+                                class_key="target",
+                                class_label="target",
+                                xlabel=xlabel,
+                                title=title,
+                                output_path=os.path.join(path_to_plot, base_plot_name + f"_{measure_mode}_target_plot.pdf")
+                            )
+
+                            _plot_per_attack_class_aggregators_binned(
+                                aggregator_points,
+                                bins,
+                                measure_mode,
+                                x_key,
+                                class_key="other",
+                                class_label="others",
+                                xlabel=xlabel,
+                                title=title,
+                                output_path=os.path.join(path_to_plot, base_plot_name + f"_{measure_mode}_others_plot.pdf")
+                            )
+                            
+                            
+                            
+#We add a new method to verify that our per class accuracy plots are working correctly.
+#This method should compute overall server test accuracy from the per class accuracies.
+#This requires taking into account that all classes are not represented equally in the test set, so we need to weight the per class accuracies by the proportion of each class in the test set.
+def _compute_overall_accuracy_from_per_class(per_class_accuracies, test_set_proportions):
+    if len(per_class_accuracies) != len(test_set_proportions):
+        raise ValueError("Length of per_class_accuracies and test_set_proportions must be the same")
+    
+    overall_accuracy = 0.0
+    for acc, prop in zip(per_class_accuracies, test_set_proportions):
+        overall_accuracy += acc * prop
+    
+    return overall_accuracy
